@@ -1,4 +1,3 @@
-
 import Tesseract from 'tesseract.js';
 
 export interface ExtractedPersonalData {
@@ -43,9 +42,7 @@ class OCRService {
           if (m.status === 'recognizing text') {
             console.log(`OCR Progress: ${Math.round(m.progress * 100)}%`);
           }
-        },
-        tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzÀÁÂÃÇÉÊÍÓÔÕÚàáâãçéêíóôõú0123456789.,/-: ()',
-        tessedit_pageseg_mode: Tesseract.PSM.AUTO,
+        }
       });
       
       console.log('Texto extraído via OCR:', result.data.text);
@@ -177,7 +174,6 @@ class OCRService {
     return extracted;
   }
 
-  // Método para detectar se comprovante de pagamento tem desconto de IR
   async hasIncomeTaxDeduction(file: File): Promise<boolean> {
     try {
       const text = await this.extractTextFromFile(file);
@@ -194,7 +190,6 @@ class OCRService {
     }
   }
 
-  // Método para verificar se é pagamento completo
   async isCompletePayment(file: File): Promise<boolean> {
     try {
       const text = await this.extractTextFromFile(file);
@@ -207,11 +202,10 @@ class OCRService {
       return !isPartial;
     } catch (error) {
       console.error('Erro ao verificar tipo de pagamento:', error);
-      return true; // Por padrão, assumimos que é completo
+      return true;
     }
   }
 
-  // Método para extrair mês de referência
   async extractReferenceMonth(file: File): Promise<string> {
     try {
       const text = await this.extractTextFromFile(file);
@@ -227,11 +221,9 @@ class OCRService {
     }
   }
 
-  // Método para garantir que sempre retorne alguma dados
   async fallbackExtraction(file: File): Promise<any> {
     console.log('Usando extração de fallback para:', file.name);
     
-    // Exemplos de dados para quando o OCR não conseguir extrair informações suficientes
     const fallbackData = {
       dadosPessoais: {
         nomeCompleto: 'JOÃO DA SILVA',
