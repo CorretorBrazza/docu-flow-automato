@@ -1,5 +1,3 @@
-
-import jsPDF from 'jspdf';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 
 export interface FichaData {
