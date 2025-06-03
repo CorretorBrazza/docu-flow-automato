@@ -1,3 +1,4 @@
+
 import ocrService from './ocrService';
 
 export interface ValidationResult {
@@ -209,164 +210,195 @@ class ValidationService {
     };
 
     try {
-      console.log('Iniciando validação de documentos:', files.length, 'arquivos');
+      console.log('=== INICIANDO VALIDAÇÃO DE DOCUMENTOS ===');
+      console.log('Total de arquivos:', files.length);
       
-      // Separar arquivos por tipo (baseado no nome ou análise do conteúdo)
-      const rgFiles = files.filter(f => 
-        f.name.toLowerCase().includes('rg') || 
-        f.name.toLowerCase().includes('identidade')
-      );
+      // Melhor detecção de tipos de documento
+      const rgFiles = files.filter(f => {
+        const name = f.name.toLowerCase();
+        return name.includes('rg') || name.includes('identidade') || name.includes('id');
+      });
       
-      const paySlipFiles = files.filter(f => 
-        f.name.toLowerCase().includes('pagamento') || 
-        f.name.toLowerCase().includes('holerite') || 
-        f.name.toLowerCase().includes('salario')
-      );
+      const paySlipFiles = files.filter(f => {
+        const name = f.name.toLowerCase();
+        return name.includes('pagamento') || name.includes('holerite') || 
+               name.includes('salario') || name.includes('contracheque') ||
+               name.includes('recibo');
+      });
       
-      const addressFiles = files.filter(f => 
-        f.name.toLowerCase().includes('residencia') ||
-        f.name.toLowerCase().includes('comprovante') ||
-        f.name.toLowerCase().includes('endereco') ||
-        f.name.toLowerCase().includes('conta')
-      );
-      
-      const workCardFiles = files.filter(f => 
-        f.name.toLowerCase().includes('carteira') ||
-        f.name.toLowerCase().includes('trabalho') ||
-        f.name.toLowerCase().includes('ctps')
-      );
-      
-      const fgtsFiles = files.filter(f => 
-        f.name.toLowerCase().includes('fgts') ||
-        f.name.toLowerCase().includes('garantia')
-      );
+      const addressFiles = files.filter(f => {
+        const name = f.name.toLowerCase();
+        return name.includes('residencia') || name.includes('comprovante') ||
+               name.includes('endereco') || name.includes('conta') ||
+               name.includes('luz') || name.includes('agua') ||
+               name.includes('telefone');
+      });
 
-      console.log('Arquivos categorizados:',
-        `RG: ${rgFiles.length}`,
-        `Pagamento: ${paySlipFiles.length}`,
-        `Endereço: ${addressFiles.length}`,
-        `Trabalho: ${workCardFiles.length}`,
-        `FGTS: ${fgtsFiles.length}`
-      );
+      console.log('=== CATEGORIZAÇÃO DOS ARQUIVOS ===');
+      console.log('RG/Identidade:', rgFiles.map(f => f.name));
+      console.log('Comprovantes de Pagamento:', paySlipFiles.map(f => f.name));
+      console.log('Comprovantes de Endereço:', addressFiles.map(f => f.name));
 
-      // Se não conseguirmos categorizar pelo nome, tentamos categorizar pelo primeiro arquivo
+      // Se não conseguir categorizar por nome, usar os primeiros arquivos
       if (rgFiles.length === 0 && files.length > 0) {
-        console.log('Tentando processar primeiro arquivo como RG');
+        console.log('Nenhum RG identificado pelo nome, usando primeiro arquivo');
         rgFiles.push(files[0]);
       }
+      
+      if (paySlipFiles.length === 0 && files.length > 1) {
+        console.log('Nenhum holerite identificado pelo nome, usando segundo arquivo');
+        paySlipFiles.push(files[1]);
+      }
 
-      // Validar RG
+      // Processar RG
       if (rgFiles.length > 0) {
-        const rgValidation = await this.validateRG(rgFiles[0]);
-        validations['RG'] = rgValidation;
-        if (rgValidation.missingDocuments) {
-          allMissingDocs.push(...rgValidation.missingDocuments);
-        }
-        
-        // Extrair dados do RG
-        const rgData = await ocrService.extractFromRG(rgFiles[0]);
-        if (Object.values(rgData).filter(Boolean).length > 0) {
-          extractedData.dadosPessoais = { ...extractedData.dadosPessoais, ...rgData };
-        } else {
-          console.log('Dados do RG insuficientes, usando fallback');
-          const fallbackData = await ocrService.fallbackExtraction(rgFiles[0]);
-          extractedData.dadosPessoais = { ...extractedData.dadosPessoais, ...fallbackData.dadosPessoais };
-        }
-      } else {
-        validations['RG'] = {
-          isValid: false,
-          status: 'error',
-          message: 'RG não encontrado',
-          details: 'Documento obrigatório'
-        };
-      }
-
-      // Validar comprovantes de pagamento
-      if (paySlipFiles.length > 0) {
-        // Considerar como válido mesmo com um único comprovante para esta demo
-        validations['Comprovantes de Pagamento'] = {
-          isValid: true,
-          status: paySlipFiles.length >= 2 ? 'success' : 'warning',
-          message: paySlipFiles.length >= 2 ? 'Comprovantes de pagamento válidos' : 'Apenas um comprovante identificado',
-          details: `Encontrados ${paySlipFiles.length} comprovante(s)`
-        };
-
-        // Extrair dados profissionais
-        if (paySlipFiles.length > 0) {
-          const profData = await ocrService.extractFromPaySlip(paySlipFiles[0]);
-          if (Object.values(profData).filter(Boolean).length > 0) {
-            extractedData.dadosProfissionais = { ...extractedData.dadosProfissionais, ...profData };
+        console.log('=== PROCESSANDO RG ===');
+        try {
+          const rgData = await ocrService.extractFromRG(rgFiles[0]);
+          console.log('Dados brutos do RG:', rgData);
+          
+          // Verificar se conseguimos dados válidos
+          const hasValidData = rgData.nomeCompleto && rgData.nomeCompleto.length > 3 && 
+                              !rgData.nomeCompleto.includes('DADOS NÃO EXTRAÍDOS');
+          
+          if (hasValidData) {
+            console.log('✅ Dados válidos extraídos do RG');
+            extractedData.dadosPessoais = { ...extractedData.dadosPessoais, ...rgData };
+            validations['RG'] = {
+              isValid: true,
+              status: 'success',
+              message: 'RG processado com sucesso',
+              details: `Nome: ${rgData.nomeCompleto}`
+            };
           } else {
-            console.log('Dados profissionais insuficientes, usando fallback');
-            const fallbackData = await ocrService.fallbackExtraction(paySlipFiles[0]);
-            extractedData.dadosProfissionais = { ...extractedData.dadosProfissionais, ...fallbackData.dadosProfissionais };
+            console.log('⚠️ Dados insuficientes no RG, mas documento presente');
+            validations['RG'] = {
+              isValid: true,
+              status: 'warning',
+              message: 'RG presente mas com dados limitados',
+              details: 'Verificação manual recomendada'
+            };
+            // Ainda assim, usar os dados parciais se houver
+            extractedData.dadosPessoais = { ...extractedData.dadosPessoais, ...rgData };
           }
+        } catch (error) {
+          console.error('Erro ao processar RG:', error);
+          validations['RG'] = {
+            isValid: false,
+            status: 'error',
+            message: 'Erro ao processar RG',
+            details: 'Falha no processamento OCR'
+          };
         }
-      } else {
-        validations['Comprovantes de Pagamento'] = {
-          isValid: false,
-          status: 'warning',
-          message: 'Comprovantes de pagamento não identificados',
-          details: 'Recomendado incluir 2 últimos comprovantes'
-        };
       }
 
-      // Validar comprovante de residência
+      // Processar Holerites
+      if (paySlipFiles.length > 0) {
+        console.log('=== PROCESSANDO COMPROVANTES DE PAGAMENTO ===');
+        try {
+          const profData = await ocrService.extractFromPaySlip(paySlipFiles[0]);
+          console.log('Dados brutos do holerite:', profData);
+          
+          const hasValidData = profData.empresa && profData.empresa.length > 3 && 
+                              !profData.empresa.includes('DADOS NÃO EXTRAÍDOS');
+          
+          if (hasValidData) {
+            console.log('✅ Dados válidos extraídos do holerite');
+            extractedData.dadosProfissionais = { ...extractedData.dadosProfissionais, ...profData };
+            validations['Comprovantes de Pagamento'] = {
+              isValid: true,
+              status: 'success',
+              message: 'Comprovante de pagamento processado',
+              details: `Empresa: ${profData.empresa}`
+            };
+          } else {
+            console.log('⚠️ Dados insuficientes no holerite');
+            validations['Comprovantes de Pagamento'] = {
+              isValid: true,
+              status: 'warning',
+              message: 'Comprovante presente mas com dados limitados',
+              details: 'Verificação manual recomendada'
+            };
+            extractedData.dadosProfissionais = { ...extractedData.dadosProfissionais, ...profData };
+          }
+        } catch (error) {
+          console.error('Erro ao processar holerite:', error);
+          validations['Comprovantes de Pagamento'] = {
+            isValid: false,
+            status: 'error',
+            message: 'Erro ao processar comprovante',
+            details: 'Falha no processamento OCR'
+          };
+        }
+      }
+
+      // Processar Comprovante de Endereço
       if (addressFiles.length > 0) {
-        validations['Comprovante de Residência'] = {
-          isValid: true,
-          status: 'success',
-          message: 'Comprovante de residência processado',
-          details: 'Documento aceito para processamento'
-        };
-
-        // Extrair dados de endereço
-        const addressData = await ocrService.extractFromAddressProof(addressFiles[0]);
-        if (Object.values(addressData).filter(Boolean).length > 0) {
-          extractedData.endereco = { ...extractedData.endereco, ...addressData };
-        } else {
-          console.log('Dados de endereço insuficientes, usando fallback');
-          const fallbackData = await ocrService.fallbackExtraction(addressFiles[0]);
-          extractedData.endereco = { ...extractedData.endereco, ...fallbackData.endereco };
+        console.log('=== PROCESSANDO COMPROVANTE DE ENDEREÇO ===');
+        try {
+          const addressData = await ocrService.extractFromAddressProof(addressFiles[0]);
+          console.log('Dados brutos do endereço:', addressData);
+          
+          const hasValidData = addressData.logradouro && addressData.logradouro.length > 5 && 
+                              !addressData.logradouro.includes('DADOS NÃO EXTRAÍDOS');
+          
+          if (hasValidData) {
+            console.log('✅ Dados válidos extraídos do comprovante de endereço');
+            extractedData.endereco = { ...extractedData.endereco, ...addressData };
+            validations['Comprovante de Residência'] = {
+              isValid: true,
+              status: 'success',
+              message: 'Comprovante de residência processado',
+              details: `Endereço: ${addressData.logradouro}`
+            };
+          } else {
+            console.log('⚠️ Dados insuficientes no comprovante de endereço');
+            validations['Comprovante de Residência'] = {
+              isValid: true,
+              status: 'warning',
+              message: 'Comprovante presente mas com dados limitados',
+              details: 'Verificação manual recomendada'
+            };
+            extractedData.endereco = { ...extractedData.endereco, ...addressData };
+          }
+        } catch (error) {
+          console.error('Erro ao processar comprovante de endereço:', error);
+          validations['Comprovante de Residência'] = {
+            isValid: false,
+            status: 'error',
+            message: 'Erro ao processar comprovante de residência',
+            details: 'Falha no processamento OCR'
+          };
         }
-      } else {
-        validations['Comprovante de Residência'] = {
-          isValid: false,
-          status: 'warning',
-          message: 'Comprovante de residência não encontrado',
-          details: 'Documento recomendado'
-        };
       }
 
-      // Validar outros documentos
-      if (workCardFiles.length > 0) {
-        validations['Carteira de Trabalho'] = {
-          isValid: true,
-          status: 'success',
-          message: 'Carteira de trabalho processada',
-          details: 'Documento aceito para processamento'
-        };
-      }
+      // Verificar se conseguimos dados suficientes
+      const hasAnyValidData = (
+        (extractedData.dadosPessoais.nomeCompleto && !extractedData.dadosPessoais.nomeCompleto.includes('DADOS NÃO EXTRAÍDOS')) ||
+        (extractedData.dadosProfissionais.empresa && !extractedData.dadosProfissionais.empresa.includes('DADOS NÃO EXTRAÍDOS')) ||
+        (extractedData.endereco.logradouro && !extractedData.endereco.logradouro.includes('DADOS NÃO EXTRAÍDOS'))
+      );
 
-      if (fgtsFiles.length > 0) {
-        validations['Extrato FGTS'] = {
-          isValid: true,
-          status: 'success',
-          message: 'Extrato FGTS processado',
-          details: 'Documento aceito para processamento'
-        };
-      }
+      console.log('=== RESULTADO FINAL DA VALIDAÇÃO ===');
+      console.log('Dados válidos extraídos:', hasAnyValidData);
+      console.log('Dados pessoais:', extractedData.dadosPessoais);
+      console.log('Dados profissionais:', extractedData.dadosProfissionais);
+      console.log('Endereço:', extractedData.endereco);
 
-      // Garantir que temos dados mínimos para continuar
-      if (Object.keys(extractedData.dadosPessoais).length === 0) {
+      // Só usar fallback se realmente não conseguirmos nada
+      if (!hasAnyValidData) {
+        console.log('❌ NENHUM DADO VÁLIDO EXTRAÍDO - USANDO FALLBACK');
         const fallbackData = await ocrService.fallbackExtraction(files[0]);
         extractedData = fallbackData;
-        console.log('Usando dados fallback para todo o conjunto');
+        
+        validations['Processamento Geral'] = {
+          isValid: true,
+          status: 'warning',
+          message: 'Documentos requerem verificação manual',
+          details: 'OCR não conseguiu extrair dados suficientes automaticamente'
+        };
       }
 
-      console.log('Validação concluída, dados extraídos:', extractedData);
-
-      // Determinar se a validação geral é válida
       const isValid = Object.values(validations).some(v => v.isValid);
 
       return {
@@ -377,19 +409,19 @@ class ValidationService {
       };
 
     } catch (error) {
-      console.error('Erro na validação:', error);
+      console.error('Erro crítico na validação:', error);
       
-      // Em caso de falha, usar dados fallback
+      // Fallback de emergência
       const fallbackData = await ocrService.fallbackExtraction(files[0]);
       
       return {
         isValid: true,
         validations: {
-          'Processamento Geral': {
+          'Erro de Processamento': {
             isValid: true,
             status: 'warning',
-            message: 'Documentos processados com limitações',
-            details: 'Processamento automático parcial, revisão manual recomendada'
+            message: 'Erro no processamento automático',
+            details: 'Documentos precisam ser verificados manualmente'
           }
         },
         missingDocuments: [],
