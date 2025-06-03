@@ -1,108 +1,180 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Download, FileText, Eye, Copy, CheckCircle, Loader2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
+import pdfService from "@/services/pdfService";
 
 interface ResultsPanelProps {
   isProcessing: boolean;
   additionalData: any;
   extractedData: any;
+  originalFiles: File[];
 }
 
-const ResultsPanel = ({ isProcessing, additionalData, extractedData }: ResultsPanelProps) => {
+const ResultsPanel = ({ isProcessing, additionalData, extractedData, originalFiles }: ResultsPanelProps) => {
   const [copySuccess, setCopySuccess] = useState(false);
+  const [generatedDocuments, setGeneratedDocuments] = useState<any>({});
+  const [isGenerating, setIsGenerating] = useState(false);
 
-  const resumoCompleto = `
-RESUMO COMPLETO - DOCUMENTAÇÃO DO CLIENTE
+  useEffect(() => {
+    if (!isProcessing && additionalData && extractedData) {
+      generateDocuments();
+    }
+  }, [isProcessing, additionalData, extractedData]);
 
-=== DADOS PESSOAIS ===
-Nome Completo: JOÃO DA SILVA SANTOS
-RG: 12.345.678-9 SSP-SP
-CPF: 123.456.789-00
-Data de Nascimento: 15/03/1985
-Naturalidade: SÃO PAULO - SP
-Estado Civil: SOLTEIRO
-Email: ${additionalData?.email || 'NÃO INFORMADO'}
-Telefone: ${additionalData?.telefone || 'NÃO INFORMADO'}
+  const generateDocuments = async () => {
+    setIsGenerating(true);
+    
+    try {
+      console.log('Gerando documentos PDF...');
+      
+      // Preparar dados para a ficha cadastral
+      const fichaData = {
+        dadosPessoais: extractedData.dadosPessoais || {},
+        dadosProfissionais: extractedData.dadosProfissionais || {},
+        endereco: extractedData.endereco || {},
+        dadosAdicionais: additionalData || {},
+        conjuge: extractedData.dadosPessoais?.estadoCivil === 'CASADO' ? extractedData.conjuge : undefined
+      };
 
-=== DADOS PROFISSIONAIS ===
-Empresa: EMPRESA EXEMPLO LTDA
-Cargo: ANALISTA FINANCEIRO
-Salário Bruto: R$ 5.500,00
-Data de Admissão: 10/01/2020
+      // Preparar dados para a capa
+      const capaData = {
+        cliente: {
+          nome: extractedData.dadosPessoais?.nomeCompleto || 'NÃO INFORMADO',
+          cpf: extractedData.dadosPessoais?.cpf || 'NÃO INFORMADO'
+        },
+        conjuge: fichaData.conjuge ? {
+          nome: fichaData.conjuge.nomeCompleto || 'NÃO INFORMADO',
+          cpf: fichaData.conjuge.cpf || 'NÃO INFORMADO'
+        } : undefined,
+        empreendimento: additionalData.empreendimento || 'NÃO INFORMADO',
+        midiaOrigem: additionalData.midiaOrigem || 'NÃO INFORMADO',
+        observacoes: additionalData.observacoes
+      };
 
-=== ENDEREÇO RESIDENCIAL ===
-Logradouro: RUA DAS FLORES, 123
-Bairro: CENTRO
-Cidade: SÃO PAULO
-Estado: SP
-CEP: 01234-567
+      // Gerar ficha cadastral
+      const fichaBytes = await pdfService.generateFichaCadastral(fichaData);
+      
+      // Gerar capa
+      const capaBytes = await pdfService.generateCapa(capaData);
+      
+      // Consolidar todos os documentos
+      const consolidatedBytes = await pdfService.consolidateDocuments(
+        originalFiles,
+        fichaBytes,
+        capaBytes
+      );
 
-=== DADOS DO PROCESSO ===
-Empreendimento: ${additionalData?.empreendimento || 'NÃO INFORMADO'}
-Mídia de Origem: ${additionalData?.midiaOrigem || 'NÃO INFORMADO'}
-Data de Verificação: ${new Date().toLocaleDateString('pt-BR')}
-Corretor: GORETI / BRAZZA
-Coordenador: LAVILLE
+      // Gerar resumo completo
+      const resumoCompleto = pdfService.generateResumoCompleto({
+        dadosPessoais: extractedData.dadosPessoais,
+        dadosProfissionais: extractedData.dadosProfissionais,
+        endereco: extractedData.endereco,
+        dadosAdicionais: additionalData
+      });
 
-EM ${new Date().toLocaleDateString('pt-BR')} FOI VERIFICADO E APROVADO A DOCUMENTAÇÃO ACIMA DESCRITA, TENDO SIDO PROTOCOLADOS OS DOCUMENTOS NECESSÁRIOS PARA ANÁLISE DE CRÉDITO.
+      setGeneratedDocuments({
+        ficha: fichaBytes,
+        capa: capaBytes,
+        consolidated: consolidatedBytes,
+        resumo: resumoCompleto
+      });
 
-${additionalData?.observacoes ? `\nObservações: ${additionalData.observacoes}` : ''}
-  `;
-
-  const handleCopyResume = () => {
-    navigator.clipboard.writeText(resumoCompleto.trim());
-    setCopySuccess(true);
-    toast({
-      title: "Resumo copiado!",
-      description: "O resumo completo foi copiado para a área de transferência.",
-    });
-    setTimeout(() => setCopySuccess(false), 2000);
+      console.log('Documentos gerados com sucesso');
+      
+    } catch (error) {
+      console.error('Erro ao gerar documentos:', error);
+      toast({
+        title: "Erro na geração",
+        description: "Falha ao gerar os documentos PDF.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
-  const generatedDocuments = [
+  const handleCopyResume = () => {
+    if (generatedDocuments.resumo) {
+      navigator.clipboard.writeText(generatedDocuments.resumo);
+      setCopySuccess(true);
+      toast({
+        title: "Resumo copiado!",
+        description: "O resumo completo foi copiado para a área de transferência.",
+      });
+      setTimeout(() => setCopySuccess(false), 2000);
+    }
+  };
+
+  const handleDownload = (type: 'ficha' | 'capa' | 'consolidated') => {
+    if (!generatedDocuments[type]) {
+      toast({
+        title: "Documento não disponível",
+        description: "O documento ainda está sendo gerado.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const filenames = {
+      ficha: 'ficha-cadastral.pdf',
+      capa: 'capa-resumo.pdf', 
+      consolidated: 'documentos-consolidados.pdf'
+    };
+
+    pdfService.downloadPDF(generatedDocuments[type], filenames[type]);
+    
+    toast({
+      title: "Download iniciado",
+      description: `${filenames[type]} está sendo baixado.`,
+    });
+  };
+
+  const documentsList = [
     {
       name: "Ficha Cadastral",
       description: "Documento principal com dados do cliente",
       type: "PDF",
-      size: "156 KB",
-      status: isProcessing ? "processing" : "ready"
+      key: "ficha" as const,
+      status: generatedDocuments.ficha ? "ready" : "processing"
     },
     {
-      name: "Capa/Resumo",
+      name: "Capa/Resumo", 
       description: "Documento de capa do processo",
-      type: "PDF", 
-      size: "89 KB",
-      status: isProcessing ? "processing" : "ready"
+      type: "PDF",
+      key: "capa" as const,
+      status: generatedDocuments.capa ? "ready" : "processing"
     },
     {
       name: "Documentos Consolidados",
       description: "Todos os documentos em um único PDF",
       type: "PDF",
-      size: "2.3 MB",
-      status: isProcessing ? "processing" : "ready"
+      key: "consolidated" as const,
+      status: generatedDocuments.consolidated ? "ready" : "processing"
     }
   ];
 
-  if (isProcessing) {
+  if (isProcessing || isGenerating) {
     return (
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
-            Processando Documentos
+            {isProcessing ? 'Processando Dados' : 'Gerando Documentos'}
           </CardTitle>
           <CardDescription>
-            Gerando ficha cadastral, capa e consolidando documentos...
+            {isProcessing 
+              ? 'Preparando dados para geração de documentos...'
+              : 'Criando ficha cadastral, capa e consolidando documentos...'
+            }
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {generatedDocuments.map((doc, index) => (
+            {documentsList.map((doc, index) => (
               <div key={index} className="flex items-center gap-3 p-4 bg-slate-50 rounded-lg">
                 <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
                 <div className="flex-1">
@@ -133,7 +205,7 @@ ${additionalData?.observacoes ? `\nObservações: ${additionalData.observacoes}`
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {generatedDocuments.map((doc, index) => (
+            {documentsList.map((doc, index) => (
               <div key={index} className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-lg">
                 <FileText className="w-5 h-5 text-green-600" />
                 <div className="flex-1">
@@ -142,12 +214,20 @@ ${additionalData?.observacoes ? `\nObservações: ${additionalData.observacoes}`
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant="outline">{doc.type}</Badge>
-                  <span className="text-xs text-slate-500">{doc.size}</span>
-                  <Button size="sm" variant="outline">
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    disabled={!generatedDocuments[doc.key]}
+                  >
                     <Eye className="w-4 h-4 mr-1" />
                     Visualizar
                   </Button>
-                  <Button size="sm" className="bg-green-600 hover:bg-green-700">
+                  <Button 
+                    size="sm" 
+                    className="bg-green-600 hover:bg-green-700"
+                    onClick={() => handleDownload(doc.key)}
+                    disabled={!generatedDocuments[doc.key]}
+                  >
                     <Download className="w-4 h-4 mr-1" />
                     Download
                   </Button>
@@ -159,49 +239,51 @@ ${additionalData?.observacoes ? `\nObservações: ${additionalData.observacoes}`
       </Card>
 
       {/* Resumo Completo */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="w-5 h-5 text-blue-500" />
-            Resumo Completo
-          </CardTitle>
-          <CardDescription>
-            Resumo detalhado para cópia e arquivamento
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <p className="text-sm text-slate-600">
-                Resumo formatado pronto para cópia
-              </p>
-              <Button
-                onClick={handleCopyResume}
-                variant="outline"
-                className={copySuccess ? "bg-green-50 border-green-300" : ""}
-              >
-                {copySuccess ? (
-                  <>
-                    <CheckCircle className="w-4 h-4 mr-2 text-green-600" />
-                    Copiado!
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-4 h-4 mr-2" />
-                    Copiar Resumo
-                  </>
-                )}
-              </Button>
+      {generatedDocuments.resumo && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="w-5 h-5 text-blue-500" />
+              Resumo Completo
+            </CardTitle>
+            <CardDescription>
+              Resumo detalhado para cópia e arquivamento
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <p className="text-sm text-slate-600">
+                  Resumo formatado pronto para cópia
+                </p>
+                <Button
+                  onClick={handleCopyResume}
+                  variant="outline"
+                  className={copySuccess ? "bg-green-50 border-green-300" : ""}
+                >
+                  {copySuccess ? (
+                    <>
+                      <CheckCircle className="w-4 h-4 mr-2 text-green-600" />
+                      Copiado!
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-4 h-4 mr-2" />
+                      Copiar Resumo
+                    </>
+                  )}
+                </Button>
+              </div>
+              
+              <div className="bg-slate-50 p-4 rounded-lg border-2 border-dashed border-slate-300 max-h-96 overflow-y-auto">
+                <pre className="text-xs text-slate-700 whitespace-pre-wrap font-mono leading-relaxed">
+                  {generatedDocuments.resumo}
+                </pre>
+              </div>
             </div>
-            
-            <div className="bg-slate-50 p-4 rounded-lg border-2 border-dashed border-slate-300">
-              <pre className="text-xs text-slate-700 whitespace-pre-wrap font-mono leading-relaxed">
-                {resumoCompleto.trim()}
-              </pre>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Ações Finais */}
       <Card>
@@ -210,15 +292,19 @@ ${additionalData?.observacoes ? `\nObservações: ${additionalData.observacoes}`
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-3">
-            <Button className="bg-blue-600 hover:bg-blue-700">
+            <Button 
+              className="bg-blue-600 hover:bg-blue-700"
+              onClick={() => handleDownload('consolidated')}
+              disabled={!generatedDocuments.consolidated}
+            >
               <Download className="w-4 h-4 mr-2" />
               Download Todos os Documentos
             </Button>
-            <Button variant="outline">
+            <Button 
+              variant="outline"
+              onClick={() => window.location.reload()}
+            >
               Processar Novo Cliente
-            </Button>
-            <Button variant="outline">
-              Salvar no Histórico
             </Button>
           </div>
         </CardContent>

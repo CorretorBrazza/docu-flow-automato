@@ -1,22 +1,23 @@
 
 import { useState, useCallback } from "react";
-import { Upload, File, X, CheckCircle, AlertTriangle } from "lucide-react";
+import { Upload, File, X, CheckCircle, AlertTriangle, Loader2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
 interface DocumentUploadProps {
-  onUploadComplete: (docs: any[]) => void;
+  onUploadComplete: (docs: File[]) => void;
 }
 
 const DocumentUpload = ({ onUploadComplete }: DocumentUploadProps) => {
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const requiredDocs = [
     "RG (frente e verso)",
     "CPF",
-    "CNH",
+    "CNH", 
     "Comprovante de Pagamento (2 últimos)",
     "Comprovante de Residência",
     "Extrato FGTS",
@@ -32,13 +33,25 @@ const DocumentUpload = ({ onUploadComplete }: DocumentUploadProps) => {
       file.type === 'application/pdf' || file.type.startsWith('image/')
     );
     
+    if (validFiles.length !== files.length) {
+      console.warn('Alguns arquivos foram rejeitados. Aceitos apenas PDF e imagens.');
+    }
+    
     setUploadedFiles(prev => [...prev, ...validFiles]);
   }, []);
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const files = Array.from(e.target.files);
-      setUploadedFiles(prev => [...prev, ...files]);
+      const validFiles = files.filter(file => 
+        file.type === 'application/pdf' || file.type.startsWith('image/')
+      );
+      
+      if (validFiles.length !== files.length) {
+        console.warn('Alguns arquivos foram rejeitados. Aceitos apenas PDF e imagens.');
+      }
+      
+      setUploadedFiles(prev => [...prev, ...validFiles]);
     }
   };
 
@@ -46,8 +59,44 @@ const DocumentUpload = ({ onUploadComplete }: DocumentUploadProps) => {
     setUploadedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleContinue = () => {
-    onUploadComplete(uploadedFiles);
+  const handleContinue = async () => {
+    if (uploadedFiles.length === 0) {
+      console.warn('Nenhum arquivo carregado');
+      return;
+    }
+
+    setIsProcessing(true);
+    
+    try {
+      // Processar arquivos e iniciar validação
+      console.log('Iniciando processamento de', uploadedFiles.length, 'arquivos');
+      
+      // Simular um pequeno delay para mostrar o loading
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      onUploadComplete(uploadedFiles);
+    } catch (error) {
+      console.error('Erro ao processar arquivos:', error);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const getFileIcon = (file: File) => {
+    if (file.type === 'application/pdf') {
+      return <File className="w-4 h-4 text-red-500" />;
+    } else if (file.type.startsWith('image/')) {
+      return <File className="w-4 h-4 text-blue-500" />;
+    }
+    return <File className="w-4 h-4 text-gray-500" />;
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
   return (
@@ -136,10 +185,15 @@ const DocumentUpload = ({ onUploadComplete }: DocumentUploadProps) => {
                 {uploadedFiles.map((file, index) => (
                   <div key={index} className="flex items-center justify-between p-2 bg-slate-50 rounded-lg">
                     <div className="flex items-center gap-2">
-                      <File className="w-4 h-4 text-blue-500" />
-                      <span className="text-sm text-slate-700 truncate max-w-[200px]">
-                        {file.name}
-                      </span>
+                      {getFileIcon(file)}
+                      <div className="flex flex-col">
+                        <span className="text-sm text-slate-700 truncate max-w-[200px]">
+                          {file.name}
+                        </span>
+                        <span className="text-xs text-slate-500">
+                          {formatFileSize(file.size)}
+                        </span>
+                      </div>
                     </div>
                     <Button
                       variant="ghost"
@@ -158,9 +212,22 @@ const DocumentUpload = ({ onUploadComplete }: DocumentUploadProps) => {
 
       {uploadedFiles.length > 0 && (
         <div className="flex justify-end">
-          <Button onClick={handleContinue} className="bg-blue-600 hover:bg-blue-700">
-            Continuar para Validação
-            <CheckCircle className="w-4 h-4 ml-2" />
+          <Button 
+            onClick={handleContinue} 
+            disabled={isProcessing}
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            {isProcessing ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Processando...
+              </>
+            ) : (
+              <>
+                Continuar para Validação
+                <CheckCircle className="w-4 h-4 ml-2" />
+              </>
+            )}
           </Button>
         </div>
       )}
