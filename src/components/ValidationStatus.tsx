@@ -1,11 +1,10 @@
-
 import { useState, useEffect } from "react";
 import { CheckCircle, AlertCircle, XCircle, Loader2, Eye, FileText } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import validationService from "@/services/validationService";
+import geminiValidationService from "@/services/geminiValidationService";
 
 interface ValidationStatusProps {
   files: File[];
@@ -22,24 +21,24 @@ const ValidationStatus = ({ files, onValidationComplete }: ValidationStatusProps
       setIsValidating(true);
       
       try {
-        console.log('Iniciando validação de', files.length, 'arquivos');
+        console.log('Iniciando validação Gemini de', files.length, 'arquivos');
         
-        const results = await validationService.validateDocuments(files);
+        const results = await geminiValidationService.validateDocuments(files);
         
-        console.log('Resultados da validação:', results);
+        console.log('Resultados da validação Gemini:', results);
         
         setValidationResults(results);
         setExtractedData(results.extractedData);
         
       } catch (error) {
-        console.error('Erro durante validação:', error);
+        console.error('Erro durante validação Gemini:', error);
         setValidationResults({
           isValid: false,
           validations: {
             'Erro Geral': {
               isValid: false,
               status: 'error',
-              message: 'Erro durante a validação',
+              message: 'Erro durante a validação via Gemini',
               details: 'Falha no processamento dos documentos'
             }
           },
