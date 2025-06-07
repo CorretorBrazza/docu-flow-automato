@@ -47,12 +47,36 @@ class GeminiValidationService {
       switch (analysisType) {
         case 'document_type':
           prompt = `
-Analise este documento e identifique o tipo. Responda apenas uma das opções:
+Analise este documento e identifique o tipo EXATO. Procure por:
+
+PARA RG/IDENTIDADE:
+- Texto "IDENTIDADE", "RG", "CARTEIRA DE IDENTIDADE"
+- Campos: Nome, RG, CPF, Data Nascimento, Filiação
+
+PARA HOLERITE/FOLHA DE PAGAMENTO:
+- Texto "FOLHA DE PAGAMENTO", "HOLERITE", "DEMONSTRATIVO"
+- Campos: Empresa, Cargo, Salário, Descontos
+
+PARA COMPROVANTE DE RESIDÊNCIA:
+- Contas: "LIGHT", "ENEL", "CEG", "ÁGUAS", "CEDAE"
+- Extratos bancários com endereço
+- Texto "COMPROVANTE DE RESIDÊNCIA", "CONTA DE LUZ", "CONTA DE ÁGUA"
+- Endereço completo visível
+
+PARA CERTIDÃO:
+- Texto "CERTIDÃO DE NASCIMENTO", "CERTIDÃO DE CASAMENTO"
+- Cartório, registro civil
+
+PARA DECLARAÇÃO IMPOSTO DE RENDA:
+- Texto "DECLARAÇÃO", "IMPOSTO DE RENDA", "RECEITA FEDERAL"
+- Ano-calendário, CPF
+
+Responda APENAS uma das opções:
 - RG
-- HOLERITE
+- HOLERITE  
 - COMPROVANTE_ENDERECO
 - CERTIDAO
-- CARTEIRA_TRABALHO
+- IMPOSTO_RENDA
 - OUTROS
           `;
           break;
@@ -113,7 +137,6 @@ Analise se os dados neste documento são consistentes e válidos. Responda em fo
     extractedData: any;
   }> {
     const validations: DocumentValidation = {};
-    const allMissingDocs: string[] = [];
     let extractedData: any = {
       dadosPessoais: {},
       dadosProfissionais: {},
@@ -121,8 +144,15 @@ Analise se os dados neste documento são consistentes e válidos. Responda em fo
       certidoes: {}
     };
 
+    // DOCUMENTOS OBRIGATÓRIOS CHECKLIST
+    const documentosObrigatorios = {
+      RG: false,
+      HOLERITE: false,
+      COMPROVANTE_ENDERECO: false
+    };
+
     try {
-      console.log('=== INICIANDO VALIDAÇÃO GEMINI ===');
+      console.log('=== INICIANDO VALIDAÇÃO GEMINI RIGOROSA ===');
       console.log('Total de arquivos:', files.length);
       
       // Categorizar documentos usando Gemini
@@ -131,17 +161,28 @@ Analise se os dados neste documento são consistentes e válidos. Responda em fo
         HOLERITE: [],
         COMPROVANTE_ENDERECO: [],
         CERTIDAO: [],
+        IMPOSTO_RENDA: [],
         OUTROS: []
       };
 
       // Analisar cada arquivo para determinar o tipo
       for (const file of files) {
         try {
+          console.log(`Analisando arquivo: ${file.name}`);
           const documentType = await this.analyzeDocumentWithGemini(file, 'document_type');
-          const category = documentType.toUpperCase().trim();
+          let category = documentType.toUpperCase().trim();
+          
+          // Normalizar categoria
+          if (category.includes('COMPROVANTE') || category.includes('ENDERECO') || category.includes('RESIDENCIA')) {
+            category = 'COMPROVANTE_ENDERECO';
+          }
           
           if (fileCategories[category]) {
             fileCategories[category].push(file);
+            // Marcar como encontrado no checklist
+            if (documentosObrigatorios.hasOwnProperty(category)) {
+              documentosObrigatorios[category as keyof typeof documentosObrigatorios] = true;
+            }
           } else {
             fileCategories.OUTROS.push(file);
           }
@@ -153,211 +194,212 @@ Analise se os dados neste documento são consistentes e válidos. Responda em fo
         }
       }
 
-      console.log('=== CATEGORIZAÇÃO GEMINI ===');
+      console.log('=== CATEGORIZAÇÃO FINAL ===');
       Object.entries(fileCategories).forEach(([category, files]) => {
         if (files.length > 0) {
           console.log(`${category}:`, files.map(f => f.name));
         }
       });
 
+      console.log('=== CHECKLIST DOCUMENTOS OBRIGATÓRIOS ===');
+      console.log('RG encontrado:', documentosObrigatorios.RG);
+      console.log('HOLERITE encontrado:', documentosObrigatorios.HOLERITE);
+      console.log('COMPROVANTE_ENDERECO encontrado:', documentosObrigatorios.COMPROVANTE_ENDERECO);
+
       // Processar RG
       if (fileCategories.RG.length > 0) {
-        console.log('=== PROCESSANDO RG COM GEMINI ===');
+        const rgFile = fileCategories.RG[0];
         try {
-          const rgFile = fileCategories.RG[0];
-          
-          // Analisar qualidade do documento
           const qualityAnalysis = await this.analyzeDocumentWithGemini(rgFile, 'document_quality');
           
           if (qualityAnalysis.legivel === false) {
             validations['RG'] = {
               isValid: false,
               status: 'error',
-              message: 'RG ilegível',
-              details: 'Documento com qualidade insuficiente para leitura'
+              message: 'RG ilegível ou de baixa qualidade',
+              details: 'Documento não atende aos critérios de qualidade'
             };
           } else {
-            // Extrair dados
             const rgData = await geminiOcrService.extractFromRG(rgFile);
-            
-            // Validar consistência dos dados
             const consistencyAnalysis = await this.analyzeDocumentWithGemini(rgFile, 'data_consistency');
             
-            if (rgData.nomeCompleto && rgData.nomeCompleto.length > 3) {
+            if (rgData.nomeCompleto && rgData.nomeCompleto.length > 3 && rgData.cpf) {
               extractedData.dadosPessoais = { ...extractedData.dadosPessoais, ...rgData };
               
               validations['RG'] = {
                 isValid: true,
-                status: consistencyAnalysis.dadosConsistentes ? 'success' : 'warning',
-                message: 'RG processado com sucesso',
-                details: `Nome: ${rgData.nomeCompleto}. ${consistencyAnalysis.observacoes || ''}`
+                status: 'success',
+                message: 'RG validado com sucesso',
+                details: `Nome: ${rgData.nomeCompleto} | CPF: ${rgData.cpf}`
               };
             } else {
               validations['RG'] = {
-                isValid: true,
-                status: 'warning',
-                message: 'RG com dados limitados',
-                details: 'Alguns campos podem precisar verificação manual'
+                isValid: false,
+                status: 'error',
+                message: 'RG com dados insuficientes',
+                details: 'Nome completo e CPF são obrigatórios'
               };
             }
           }
         } catch (error) {
-          console.error('Erro ao processar RG:', error);
           validations['RG'] = {
             isValid: false,
             status: 'error',
             message: 'Erro ao processar RG',
-            details: 'Falha no processamento via Gemini'
+            details: 'Falha no processamento do documento'
           };
         }
       }
 
       // Processar Holerites
       if (fileCategories.HOLERITE.length > 0) {
-        console.log('=== PROCESSANDO HOLERITES COM GEMINI ===');
+        const holerite = fileCategories.HOLERITE[0];
         try {
-          const holerite = fileCategories.HOLERITE[0];
-          
           const qualityAnalysis = await this.analyzeDocumentWithGemini(holerite, 'document_quality');
           
           if (qualityAnalysis.legivel === false) {
-            validations['Comprovantes de Pagamento'] = {
+            validations['Comprovante de Renda'] = {
               isValid: false,
               status: 'error',
               message: 'Holerite ilegível',
-              details: 'Documento com qualidade insuficiente'
+              details: 'Documento de baixa qualidade'
             };
           } else {
             const profData = await geminiOcrService.extractFromPaySlip(holerite);
             
-            if (profData.empresa && profData.empresa.length > 3) {
+            if (profData.empresa && profData.empresa.length > 3 && profData.salarioBruto) {
               extractedData.dadosProfissionais = { ...extractedData.dadosProfissionais, ...profData };
               
-              validations['Comprovantes de Pagamento'] = {
+              validations['Comprovante de Renda'] = {
                 isValid: true,
                 status: 'success',
-                message: 'Holerite processado com sucesso',
-                details: `Empresa: ${profData.empresa}`
+                message: 'Comprovante de renda validado',
+                details: `Empresa: ${profData.empresa} | Salário: ${profData.salarioBruto}`
               };
             } else {
-              validations['Comprovantes de Pagamento'] = {
-                isValid: true,
-                status: 'warning',
-                message: 'Holerite com dados limitados',
-                details: 'Verificação manual recomendada'
+              validations['Comprovante de Renda'] = {
+                isValid: false,
+                status: 'error',
+                message: 'Holerite com dados insuficientes',
+                details: 'Empresa e salário são obrigatórios'
               };
             }
           }
         } catch (error) {
-          console.error('Erro ao processar holerite:', error);
-          validations['Comprovantes de Pagamento'] = {
+          validations['Comprovante de Renda'] = {
             isValid: false,
             status: 'error',
             message: 'Erro ao processar holerite',
-            details: 'Falha no processamento via Gemini'
+            details: 'Falha no processamento'
           };
         }
       }
 
-      // Processar Comprovante de Endereço
+      // Processar Comprovante de Endereço (CRÍTICO)
       if (fileCategories.COMPROVANTE_ENDERECO.length > 0) {
-        console.log('=== PROCESSANDO COMPROVANTE DE ENDEREÇO COM GEMINI ===');
+        const comprovante = fileCategories.COMPROVANTE_ENDERECO[0];
         try {
-          const comprovante = fileCategories.COMPROVANTE_ENDERECO[0];
-          
           const qualityAnalysis = await this.analyzeDocumentWithGemini(comprovante, 'document_quality');
           
           if (qualityAnalysis.legivel === false) {
             validations['Comprovante de Residência'] = {
               isValid: false,
               status: 'error',
-              message: 'Comprovante ilegível',
-              details: 'Documento com qualidade insuficiente'
+              message: 'Comprovante de residência ilegível',
+              details: 'Documento não atende critérios de qualidade'
             };
           } else {
             const addressData = await geminiOcrService.extractFromAddressProof(comprovante);
             
-            if (addressData.logradouro && addressData.logradouro.length > 5) {
+            if (addressData.logradouro && addressData.cidade && addressData.cep) {
               extractedData.endereco = { ...extractedData.endereco, ...addressData };
               
               validations['Comprovante de Residência'] = {
                 isValid: true,
                 status: 'success',
-                message: 'Comprovante processado com sucesso',
-                details: `Endereço: ${addressData.logradouro}`
+                message: 'Comprovante de residência validado',
+                details: `Endereço: ${addressData.logradouro}, ${addressData.cidade}`
               };
             } else {
               validations['Comprovante de Residência'] = {
-                isValid: true,
-                status: 'warning',
-                message: 'Comprovante com dados limitados',
-                details: 'Verificação manual recomendada'
+                isValid: false,
+                status: 'error',
+                message: 'Comprovante com dados insuficientes',
+                details: 'Endereço completo, cidade e CEP são obrigatórios'
               };
             }
           }
         } catch (error) {
-          console.error('Erro ao processar comprovante:', error);
           validations['Comprovante de Residência'] = {
             isValid: false,
             status: 'error',
             message: 'Erro ao processar comprovante',
-            details: 'Falha no processamento via Gemini'
+            details: 'Falha no processamento'
           };
         }
       }
 
-      // Verificar se conseguimos dados suficientes
-      const hasAnyValidData = (
-        (extractedData.dadosPessoais.nomeCompleto && !extractedData.dadosPessoais.nomeCompleto.includes('DADOS NÃO EXTRAÍDOS')) ||
-        (extractedData.dadosProfissionais.empresa && !extractedData.dadosProfissionais.empresa.includes('DADOS NÃO EXTRAÍDOS')) ||
-        (extractedData.endereco.logradouro && !extractedData.endereco.logradouro.includes('DADOS NÃO EXTRAÍDOS'))
-      );
-
-      console.log('=== RESULTADO FINAL DA VALIDAÇÃO GEMINI ===');
-      console.log('Dados válidos extraídos:', hasAnyValidData);
-      console.log('Dados pessoais:', extractedData.dadosPessoais);
-      console.log('Dados profissionais:', extractedData.dadosProfissionais);
-      console.log('Endereço:', extractedData.endereco);
-
-      if (!hasAnyValidData) {
-        console.log('❌ NENHUM DADO VÁLIDO EXTRAÍDO - USANDO FALLBACK');
-        const fallbackData = await geminiOcrService.fallbackExtraction(files[0]);
-        extractedData = fallbackData;
-        
-        validations['Processamento Geral'] = {
-          isValid: true,
-          status: 'warning',
-          message: 'Documentos requerem verificação manual',
-          details: 'Gemini não conseguiu extrair dados suficientes automaticamente'
-        };
+      // Verificar documentos faltantes
+      const missingDocuments: string[] = [];
+      if (!documentosObrigatorios.RG) {
+        missingDocuments.push('RG ou Documento de Identidade');
+      }
+      if (!documentosObrigatorios.HOLERITE) {
+        missingDocuments.push('Comprovante de Renda (Holerite)');
+      }
+      if (!documentosObrigatorios.COMPROVANTE_ENDERECO) {
+        missingDocuments.push('Comprovante de Residência');
       }
 
-      const isValid = Object.values(validations).some(v => v.isValid);
+      // Determinar se a validação geral é válida
+      const hasRequiredDocs = documentosObrigatorios.RG && documentosObrigatorios.HOLERITE && documentosObrigatorios.COMPROVANTE_ENDERECO;
+      const allValidationsSuccessful = Object.values(validations).every(v => v.isValid);
+      
+      const isValid = hasRequiredDocs && allValidationsSuccessful;
+
+      console.log('=== RESULTADO FINAL DA VALIDAÇÃO ===');
+      console.log('Documentos obrigatórios completos:', hasRequiredDocs);
+      console.log('Todas as validações bem-sucedidas:', allValidationsSuccessful);
+      console.log('Validação geral aprovada:', isValid);
+      console.log('Documentos faltantes:', missingDocuments);
+
+      // Se não temos dados suficientes, usar fallback
+      if (!isValid || missingDocuments.length > 0) {
+        console.log('⚠️ VALIDAÇÃO FALHOU - DOCUMENTOS INSUFICIENTES');
+        
+        if (missingDocuments.length > 0) {
+          validations['Documentos Obrigatórios'] = {
+            isValid: false,
+            status: 'error',
+            message: 'Documentos obrigatórios faltantes',
+            details: `Faltam: ${missingDocuments.join(', ')}`,
+            missingDocuments
+          };
+        }
+      }
 
       return {
         isValid,
         validations,
-        missingDocuments: [...new Set(allMissingDocs)],
+        missingDocuments,
         extractedData
       };
 
     } catch (error) {
-      console.error('Erro crítico na validação Gemini:', error);
-      
-      const fallbackData = await geminiOcrService.fallbackExtraction(files[0]);
+      console.error('Erro crítico na validação:', error);
       
       return {
-        isValid: true,
+        isValid: false,
         validations: {
-          'Erro de Processamento': {
-            isValid: true,
-            status: 'warning',
-            message: 'Erro no processamento automático via Gemini',
-            details: 'Documentos precisam ser verificados manualmente'
+          'Erro de Sistema': {
+            isValid: false,
+            status: 'error',
+            message: 'Falha no sistema de validação',
+            details: 'Erro técnico durante o processamento'
           }
         },
-        missingDocuments: [],
-        extractedData: fallbackData
+        missingDocuments: ['RG ou Documento de Identidade', 'Comprovante de Renda', 'Comprovante de Residência'],
+        extractedData: {}
       };
     }
   }

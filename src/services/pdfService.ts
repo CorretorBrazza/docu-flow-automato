@@ -322,54 +322,159 @@ ${data.observacoes ? `\nOBSERVAÇÕES: ${data.observacoes}` : ''}
 
   async consolidateDocuments(originalFiles: File[], fichaBytes: Uint8Array, capaBytes: Uint8Array): Promise<Uint8Array> {
     try {
+      console.log('=== INICIANDO CONSOLIDAÇÃO DE DOCUMENTOS ===');
+      console.log('Ordem esperada: 1) Capa, 2) Ficha Cadastral, 3) Documentos Originais');
+      
       const consolidatedPdf = await PDFDocument.create();
 
-      // Adicionar capa primeiro
+      // 1. PRIMEIRA PÁGINA: CAPA/RESUMO
+      console.log('Adicionando CAPA como primeira página...');
       const capaPdf = await PDFDocument.load(capaBytes);
       const capaPages = await consolidatedPdf.copyPages(capaPdf, capaPdf.getPageIndices());
       capaPages.forEach((page) => consolidatedPdf.addPage(page));
 
-      // Adicionar ficha cadastral
+      // 2. SEGUNDA PÁGINA: FICHA CADASTRAL
+      console.log('Adicionando FICHA CADASTRAL como segunda página...');
       const fichaPdf = await PDFDocument.load(fichaBytes);
       const fichaPages = await consolidatedPdf.copyPages(fichaPdf, fichaPdf.getPageIndices());
       fichaPages.forEach((page) => consolidatedPdf.addPage(page));
 
-      // Adicionar documentos originais
-      for (const file of originalFiles) {
+      // 3. PÁGINAS SEGUINTES: DOCUMENTOS ORIGINAIS EM ORDEM ESPECÍFICA
+      console.log('Adicionando documentos originais em ordem...');
+      
+      // Ordenar arquivos por prioridade: RG, Holerite, Comprovante, Certidões, Outros
+      const orderedFiles = this.orderFilesByPriority(originalFiles);
+      
+      for (const file of orderedFiles) {
+        console.log(`Processando arquivo: ${file.name}`);
+        
         if (file.type === 'application/pdf') {
-          const fileBytes = await file.arrayBuffer();
-          const filePdf = await PDFDocument.load(fileBytes);
-          const pages = await consolidatedPdf.copyPages(filePdf, filePdf.getPageIndices());
-          pages.forEach((page) => consolidatedPdf.addPage(page));
-        } else if (file.type.startsWith('image/')) {
-          // Converter imagem para PDF e adicionar
-          const imageBytes = await file.arrayBuffer();
-          const page = consolidatedPdf.addPage([595, 842]);
-          
-          let image;
-          if (file.type === 'image/jpeg' || file.type === 'image/jpg') {
-            image = await consolidatedPdf.embedJpg(imageBytes);
-          } else if (file.type === 'image/png') {
-            image = await consolidatedPdf.embedPng(imageBytes);
+          try {
+            const fileBytes = await file.arrayBuffer();
+            const filePdf = await PDFDocument.load(fileBytes);
+            const pages = await consolidatedPdf.copyPages(filePdf, filePdf.getPageIndices());
+            pages.forEach((page) => consolidatedPdf.addPage(page));
+            console.log(`✅ PDF adicionado: ${file.name}`);
+          } catch (error) {
+            console.error(`❌ Erro ao processar PDF ${file.name}:`, error);
           }
+        } else if (file.type.startsWith('image/')) {
+          try {
+            // Converter imagem para PDF e adicionar
+            const imageBytes = await file.arrayBuffer();
+            const page = consolidatedPdf.addPage([595, 842]); // A4
+            
+            let image;
+            if (file.type === 'image/jpeg' || file.type === 'image/jpg') {
+              image = await consolidatedPdf.embedJpg(imageBytes);
+            } else if (file.type === 'image/png') {
+              image = await consolidatedPdf.embedPng(imageBytes);
+            }
 
-          if (image) {
-            const { width, height } = image.scale(0.5);
-            page.drawImage(image, {
-              x: 50,
-              y: 842 - height - 50,
-              width,
-              height,
-            });
+            if (image) {
+              // Calcular dimensões para caber na página mantendo proporção
+              const maxWidth = 495; // largura máxima (A4 - margens)
+              const maxHeight = 692; // altura máxima (A4 - margens)
+              
+              const imgWidth = image.width;
+              const imgHeight = image.height;
+              
+              let finalWidth = imgWidth;
+              let finalHeight = imgHeight;
+              
+              // Redimensionar se necessário
+              if (imgWidth > maxWidth) {
+                finalWidth = maxWidth;
+                finalHeight = (imgHeight * maxWidth) / imgWidth;
+              }
+              
+              if (finalHeight > maxHeight) {
+                finalHeight = maxHeight;
+                finalWidth = (finalWidth * maxHeight) / finalHeight;
+              }
+              
+              // Centralizar na página
+              const x = (595 - finalWidth) / 2;
+              const y = (842 - finalHeight) / 2;
+              
+              page.drawImage(image, {
+                x,
+                y,
+                width: finalWidth,
+                height: finalHeight,
+              });
+              
+              console.log(`✅ Imagem adicionada: ${file.name}`);
+            }
+          } catch (error) {
+            console.error(`❌ Erro ao processar imagem ${file.name}:`, error);
           }
         }
       }
 
+      console.log('=== CONSOLIDAÇÃO CONCLUÍDA ===');
+      console.log(`Total de páginas no documento final: ${consolidatedPdf.getPageCount()}`);
+      
       return await consolidatedPdf.save();
     } catch (error) {
       console.error('Erro ao consolidar documentos:', error);
       return new Uint8Array();
     }
+  }
+
+  private orderFilesByPriority(files: File[]): File[] {
+    console.log('=== ORDENANDO ARQUIVOS POR PRIORIDADE ===');
+    
+    const priorityOrder = {
+      rg: 1,        // RG/Identidade primeiro
+      holerite: 2,  // Holerite segundo  
+      comprovante: 3, // Comprovante de residência terceiro
+      certidao: 4,  // Certidões quarto
+      imposto: 5,   // Declaração IR quinto
+      outros: 6     // Outros por último
+    };
+
+    const categorizeFile = (filename: string): number => {
+      const name = filename.toLowerCase();
+      
+      if (name.includes('rg') || name.includes('identidade')) {
+        console.log(`${filename} -> RG (prioridade 1)`);
+        return priorityOrder.rg;
+      }
+      if (name.includes('holerite') || name.includes('folha') || name.includes('pagamento')) {
+        console.log(`${filename} -> HOLERITE (prioridade 2)`);
+        return priorityOrder.holerite;
+      }
+      if (name.includes('comprovante') || name.includes('residencia') || name.includes('endereco') || 
+          name.includes('light') || name.includes('enel') || name.includes('agua') || name.includes('conta')) {
+        console.log(`${filename} -> COMPROVANTE (prioridade 3)`);
+        return priorityOrder.comprovante;
+      }
+      if (name.includes('certidao') || name.includes('nascimento') || name.includes('casamento')) {
+        console.log(`${filename} -> CERTIDÃO (prioridade 4)`);
+        return priorityOrder.certidao;
+      }
+      if (name.includes('imposto') || name.includes('declaracao') || name.includes('irpf')) {
+        console.log(`${filename} -> IMPOSTO RENDA (prioridade 5)`);
+        return priorityOrder.imposto;
+      }
+      
+      console.log(`${filename} -> OUTROS (prioridade 6)`);
+      return priorityOrder.outros;
+    };
+
+    const sortedFiles = [...files].sort((a, b) => {
+      const priorityA = categorizeFile(a.name);
+      const priorityB = categorizeFile(b.name);
+      return priorityA - priorityB;
+    });
+
+    console.log('Ordem final dos arquivos:');
+    sortedFiles.forEach((file, index) => {
+      console.log(`${index + 1}. ${file.name}`);
+    });
+
+    return sortedFiles;
   }
 
   generateResumoCompleto(data: any): string {
