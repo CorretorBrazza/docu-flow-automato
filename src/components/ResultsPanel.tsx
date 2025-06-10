@@ -1,6 +1,5 @@
-
 import { useState, useEffect } from "react";
-import { Download, FileText, Eye, Copy, CheckCircle, Loader2 } from "lucide-react";
+import { Download, FileText, Eye, Copy, CheckCircle, Loader2, ArrowLeft } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,9 +11,10 @@ interface ResultsPanelProps {
   additionalData: any;
   extractedData: any;
   originalFiles: File[];
+  onBackToData: () => void;
 }
 
-const ResultsPanel = ({ isProcessing, additionalData, extractedData, originalFiles }: ResultsPanelProps) => {
+const ResultsPanel = ({ isProcessing, additionalData, extractedData, originalFiles, onBackToData }: ResultsPanelProps) => {
   const [copySuccess, setCopySuccess] = useState(false);
   const [generatedDocuments, setGeneratedDocuments] = useState<any>({});
   const [isGenerating, setIsGenerating] = useState(false);
@@ -192,6 +192,18 @@ const ResultsPanel = ({ isProcessing, additionalData, extractedData, originalFil
 
   return (
     <div className="space-y-6">
+      {/* Back Button */}
+      <div className="flex items-center gap-4">
+        <Button
+          variant="outline"
+          onClick={onBackToData}
+          className="flex items-center gap-2"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Voltar aos Dados
+        </Button>
+      </div>
+
       {/* Documentos Gerados */}
       <Card>
         <CardHeader>
