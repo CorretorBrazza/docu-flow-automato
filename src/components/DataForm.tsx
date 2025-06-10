@@ -1,6 +1,5 @@
-
 import { useState } from "react";
-import { Users, Mail, Phone, Building, Megaphone } from "lucide-react";
+import { Users, Mail, Phone, Building, Megaphone, ArrowLeft } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,9 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 interface DataFormProps {
   onSubmit: (data: any) => void;
+  onBackToValidation?: () => void;
 }
 
-const DataForm = ({ onSubmit }: DataFormProps) => {
+const DataForm = ({ onSubmit, onBackToValidation }: DataFormProps) => {
   const [formData, setFormData] = useState({
     email: "",
     telefone: "",
@@ -53,6 +53,17 @@ const DataForm = ({ onSubmit }: DataFormProps) => {
 
   return (
     <div className="space-y-6">
+      {onBackToValidation && (
+        <Button
+          variant="ghost"
+          onClick={onBackToValidation}
+          className="flex items-center gap-2"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Voltar para Validação
+        </Button>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">

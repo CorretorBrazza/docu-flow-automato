@@ -1,20 +1,24 @@
 
 import { useState } from "react";
-import { Upload, FileCheck, Users, FileText, CheckCircle, AlertCircle, Clock } from "lucide-react";
+import { Upload, FileCheck, Users, FileText, CheckCircle, AlertCircle, Clock, ArrowLeft, Home } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Button } from "@/components/ui/button";
 import DocumentUpload from "@/components/DocumentUpload";
 import ValidationStatus from "@/components/ValidationStatus";
 import DataForm from "@/components/DataForm";
 import ResultsPanel from "@/components/ResultsPanel";
+import ClientDashboard from "@/components/ClientDashboard";
 
 const Index = () => {
+  const [currentView, setCurrentView] = useState<'dashboard' | 'process'>('dashboard');
   const [currentStep, setCurrentStep] = useState(1);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [validationData, setValidationData] = useState<any>(null);
   const [additionalData, setAdditionalData] = useState<any>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [currentClient, setCurrentClient] = useState<any>(null);
 
   const steps = [
     { id: 1, name: "Upload de Documentos", icon: Upload },
@@ -22,6 +26,29 @@ const Index = () => {
     { id: 3, name: "Dados Adicionais", icon: Users },
     { id: 4, name: "Resultados", icon: FileText }
   ];
+
+  const handleNewClient = () => {
+    setCurrentView('process');
+    setCurrentStep(1);
+    setUploadedFiles([]);
+    setValidationData(null);
+    setAdditionalData(null);
+    setIsProcessing(false);
+    setCurrentClient(null);
+  };
+
+  const handleEditClient = (client: any) => {
+    setCurrentClient(client);
+    setCurrentView('process');
+    setCurrentStep(client.step || 1);
+    setUploadedFiles(client.files || []);
+    setValidationData(client.validationData || null);
+    setAdditionalData(client.additionalData || null);
+  };
+
+  const handleBackToDashboard = () => {
+    setCurrentView('dashboard');
+  };
 
   const handleDocumentUpload = (files: File[]) => {
     console.log('Documentos carregados:', files.length);
@@ -41,11 +68,20 @@ const Index = () => {
     setIsProcessing(true);
     setCurrentStep(4);
     
-    // Simular um pequeno delay antes de iniciar geração
     setTimeout(() => {
       setIsProcessing(false);
     }, 2000);
   };
+
+  const handleGoToStep = (step: number) => {
+    if (step <= currentStep) {
+      setCurrentStep(step);
+    }
+  };
+
+  if (currentView === 'dashboard') {
+    return <ClientDashboard onNewClient={handleNewClient} onEditClient={handleEditClient} />;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
@@ -53,9 +89,20 @@ const Index = () => {
       <div className="border-b bg-white shadow-sm">
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-800">DocuFlow Automato</h1>
-              <p className="text-slate-600">Sistema de Automatização de Documentos com OCR Real</p>
+            <div className="flex items-center gap-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleBackToDashboard}
+                className="flex items-center gap-2"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Dashboard
+              </Button>
+              <div>
+                <h1 className="text-2xl font-bold text-slate-800">BrFlow</h1>
+                <p className="text-slate-600">Sistema de Automatização de Documentos</p>
+              </div>
             </div>
             <Badge variant="outline" className="text-green-600 border-green-200">
               v2.0 Funcional
@@ -72,16 +119,22 @@ const Index = () => {
               const Icon = step.icon;
               const isActive = currentStep === step.id;
               const isCompleted = currentStep > step.id;
+              const canNavigate = step.id <= currentStep;
               
               return (
                 <div key={step.id} className="flex items-center">
-                  <div className={`flex items-center justify-center w-10 h-10 rounded-full ${
-                    isCompleted ? 'bg-green-500 text-white' :
-                    isActive ? 'bg-blue-500 text-white' :
-                    'bg-slate-200 text-slate-500'
-                  }`}>
+                  <button
+                    onClick={() => canNavigate && handleGoToStep(step.id)}
+                    disabled={!canNavigate}
+                    className={`flex items-center justify-center w-10 h-10 rounded-full transition-colors ${
+                      isCompleted ? 'bg-green-500 text-white' :
+                      isActive ? 'bg-blue-500 text-white' :
+                      canNavigate ? 'bg-slate-200 text-slate-500 hover:bg-slate-300' :
+                      'bg-slate-100 text-slate-400'
+                    } ${canNavigate ? 'cursor-pointer' : 'cursor-not-allowed'}`}
+                  >
                     {isCompleted ? <CheckCircle className="w-5 h-5" /> : <Icon className="w-5 h-5" />}
-                  </div>
+                  </button>
                   <span className={`ml-2 text-sm font-medium ${
                     isActive ? 'text-blue-600' : 'text-slate-600'
                   }`}>
@@ -154,13 +207,6 @@ const Index = () => {
                       </div>
                     </div>
                   )}
-
-                  <div className="pt-4 border-t text-xs text-slate-500">
-                    <p>✅ OCR Real (Tesseract.js)</p>
-                    <p>✅ Validação Completa</p>
-                    <p>✅ Geração PDF Real</p>
-                    <p>✅ Consolidação de Docs</p>
-                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -176,11 +222,15 @@ const Index = () => {
               <ValidationStatus 
                 files={uploadedFiles}
                 onValidationComplete={handleValidationComplete}
+                onBackToUpload={() => setCurrentStep(1)}
               />
             )}
 
             {currentStep === 3 && (
-              <DataForm onSubmit={handleDataSubmit} />
+              <DataForm 
+                onSubmit={handleDataSubmit}
+                onBackToValidation={() => setCurrentStep(2)}
+              />
             )}
 
             {currentStep === 4 && (
@@ -189,6 +239,7 @@ const Index = () => {
                 additionalData={additionalData}
                 extractedData={validationData?.extractedData}
                 originalFiles={uploadedFiles}
+                onBackToData={() => setCurrentStep(3)}
               />
             )}
           </div>
