@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Upload, FileCheck, Users, FileText, CheckCircle, AlertCircle, Clock, ArrowLeft, Home } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +9,7 @@ import ValidationStatus from "@/components/ValidationStatus";
 import DataForm from "@/components/DataForm";
 import ResultsPanel from "@/components/ResultsPanel";
 import ClientDashboard from "@/components/ClientDashboard";
+import { useClients } from "@/contexts/ClientContext";
 
 const Index = () => {
   const [currentView, setCurrentView] = useState<'dashboard' | 'process'>('dashboard');
@@ -18,7 +18,9 @@ const Index = () => {
   const [validationData, setValidationData] = useState<any>(null);
   const [additionalData, setAdditionalData] = useState<any>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [currentClient, setCurrentClient] = useState<any>(null);
+  const [currentClientId, setCurrentClientId] = useState<string | null>(null);
+  
+  const { addClient, updateClient, getClient } = useClients();
 
   const steps = [
     { id: 1, name: "Upload de Documentos", icon: Upload },
@@ -28,17 +30,29 @@ const Index = () => {
   ];
 
   const handleNewClient = () => {
+    // Criar um novo cliente com dados básicos
+    const newClientId = addClient({
+      name: "Novo Cliente",
+      empreendimento: "A definir",
+      status: "pendente",
+      step: 1,
+      missingDocs: ["Documentos iniciais"],
+      files: [],
+      validationData: null,
+      additionalData: null
+    });
+
+    setCurrentClientId(newClientId);
     setCurrentView('process');
     setCurrentStep(1);
     setUploadedFiles([]);
     setValidationData(null);
     setAdditionalData(null);
     setIsProcessing(false);
-    setCurrentClient(null);
   };
 
   const handleEditClient = (client: any) => {
-    setCurrentClient(client);
+    setCurrentClientId(client.id);
     setCurrentView('process');
     setCurrentStep(client.step || 1);
     setUploadedFiles(client.files || []);
@@ -48,17 +62,38 @@ const Index = () => {
 
   const handleBackToDashboard = () => {
     setCurrentView('dashboard');
+    setCurrentClientId(null);
+  };
+
+  const updateCurrentClient = (updates: any) => {
+    if (currentClientId) {
+      updateClient(currentClientId, updates);
+    }
   };
 
   const handleDocumentUpload = (files: File[]) => {
     console.log('Documentos carregados:', files.length);
     setUploadedFiles(files);
+    updateCurrentClient({ 
+      files, 
+      step: 2,
+      missingDocs: files.length > 0 ? [] : ["Documentos obrigatórios"]
+    });
     setCurrentStep(2);
   };
 
   const handleValidationComplete = (data: any) => {
     console.log('Validação concluída:', data);
     setValidationData(data);
+    
+    // Extrair nome do cliente dos dados validados se disponível
+    const clientName = data.extractedData?.dadosPessoais?.nomeCompleto || "Cliente";
+    
+    updateCurrentClient({ 
+      validationData: data, 
+      step: 3,
+      name: clientName
+    });
     setCurrentStep(3);
   };
 
@@ -66,10 +101,21 @@ const Index = () => {
     console.log('Dados adicionais enviados:', data);
     setAdditionalData(data);
     setIsProcessing(true);
+    
+    updateCurrentClient({ 
+      additionalData: data, 
+      step: 4,
+      empreendimento: data.empreendimento || "Empreendimento não informado"
+    });
     setCurrentStep(4);
     
     setTimeout(() => {
       setIsProcessing(false);
+      // Marcar como finalizado quando o processamento terminar
+      updateCurrentClient({ 
+        status: "finalizado",
+        missingDocs: []
+      });
     }, 2000);
   };
 

@@ -1,10 +1,10 @@
-
 import { useState } from "react";
 import { Plus, User, Building, AlertTriangle, CheckCircle, Clock, Edit, Eye } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { useClients } from "@/contexts/ClientContext";
 
 interface Client {
   id: string;
@@ -26,47 +26,9 @@ interface ClientDashboardProps {
 
 const ClientDashboard = ({ onNewClient, onEditClient }: ClientDashboardProps) => {
   const [searchTerm, setSearchTerm] = useState("");
-  
-  // Dados mockados para demonstração
-  const [clients] = useState<Client[]>([
-    {
-      id: "1",
-      name: "João Silva",
-      empreendimento: "Residencial Vista Verde",
-      status: "pendente",
-      step: 2,
-      missingDocs: ["Comprovante de Renda", "RG Cônjuge"],
-      createdAt: "2025-06-08"
-    },
-    {
-      id: "2", 
-      name: "Maria Santos",
-      empreendimento: "Condomínio Águas Claras",
-      status: "finalizado",
-      step: 4,
-      missingDocs: [],
-      createdAt: "2025-06-07"
-    },
-    {
-      id: "3",
-      name: "Carlos Oliveira", 
-      empreendimento: "Edifício Central Park",
-      status: "pendente",
-      step: 1,
-      missingDocs: ["RG", "CPF", "Comprovante de Residência", "Holerite"],
-      createdAt: "2025-06-09"
-    },
-    {
-      id: "4",
-      name: "Ana Costa",
-      empreendimento: "Residencial Jardim das Flores", 
-      status: "finalizado",
-      step: 4,
-      missingDocs: [],
-      createdAt: "2025-06-06"
-    }
-  ]);
+  const { clients } = useClients();
 
+  // Dados mockados para demonstração
   const filteredClients = clients.filter(client =>
     client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     client.empreendimento.toLowerCase().includes(searchTerm.toLowerCase())
