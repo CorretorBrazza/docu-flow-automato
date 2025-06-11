@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useClients } from "@/contexts/ClientContext";
+import TemplateUploader from "./TemplateUploader";
 
 interface Client {
   id: string;
@@ -81,6 +82,9 @@ const ClientDashboard = ({ onNewClient, onEditClient }: ClientDashboardProps) =>
       </div>
 
       <div className="container mx-auto px-6 py-6">
+        {/* Template Uploader */}
+        <TemplateUploader />
+
         {/* Search Bar */}
         <div className="mb-6">
           <Input
