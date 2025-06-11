@@ -20,9 +20,8 @@ const DocumentUpload = ({ onUploadComplete, initialFiles = [] }: DocumentUploadP
   }, [initialFiles]);
 
   const requiredDocs = [
-    "RG (frente e verso)",
-    "CPF",
-    "CNH", 
+    "RG (frente e verso) OU CNH",
+    "CPF (se não estiver no RG/CNH)",
     "Comprovante de Pagamento (2 últimos)",
     "Comprovante de Residência",
     "Extrato FGTS",

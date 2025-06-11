@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { FileCheck, CheckCircle, AlertTriangle, Loader2, ArrowLeft } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,51 +33,145 @@ const ValidationStatus = ({ files, onValidationComplete, onBackToUpload, initial
     }
   }, [files, initialValidationData]);
 
+  const identifyDocumentType = (filename: string): string => {
+    const name = filename.toLowerCase();
+    
+    // Verificar CNH primeiro (mais específico)
+    if (name.includes('cnh') || name.includes('carteira') || name.includes('habilitacao')) {
+      return 'cnh';
+    }
+    
+    // RG/Identidade
+    if (name.includes('rg') || name.includes('identidade')) {
+      return 'rg';
+    }
+    
+    // CPF
+    if (name.includes('cpf')) {
+      return 'cpf';
+    }
+    
+    // Holerite/Pagamento
+    if (name.includes('holerite') || name.includes('folha') || name.includes('pagamento') || name.includes('contracheque')) {
+      return 'payslip';
+    }
+    
+    // Comprovante de endereço
+    if (name.includes('comprovante') || name.includes('residencia') || name.includes('endereco') || name.includes('conta')) {
+      return 'address';
+    }
+    
+    // Certidão
+    if (name.includes('certidao') || name.includes('nascimento') || name.includes('casamento')) {
+      return 'certificate';
+    }
+    
+    return 'unknown';
+  };
+
   const validateDocuments = async () => {
     setIsProcessing(true);
     setValidationResults({ isValid: true, errors: [] });
     setExtractedData({});
 
     try {
-      const rgFile = files.find(file => file.name.toLowerCase().includes('rg') || file.name.toLowerCase().includes('identidade'));
-      const payslipFiles = files.filter(file => file.name.toLowerCase().includes('holerite') || file.name.toLowerCase().includes('folha') || file.name.toLowerCase().includes('pagamento'));
-      const addressFile = files.find(file => file.name.toLowerCase().includes('comprovante') || file.name.toLowerCase().includes('residencia') || file.name.toLowerCase().includes('endereco'));
-      const certificateFile = files.find(file => file.name.toLowerCase().includes('certidao') || file.name.toLowerCase().includes('nascimento') || file.name.toLowerCase().includes('casamento'));
+      const documentTypes = files.map(file => ({
+        file,
+        type: identifyDocumentType(file.name)
+      }));
 
-      let rgData: Partial<ExtractedPersonalData> = {};
+      console.log('Documentos identificados:', documentTypes);
+
+      let personalData: Partial<ExtractedPersonalData> = {};
       let payslipData: Partial<ExtractedProfessionalData> = {};
       let addressData: Partial<ExtractedAddressData> = {};
       let certificateData: any = {};
 
-      if (rgFile) {
-        rgData = await geminiOcrService.extractFromRG(rgFile);
-        setExtractedData(prev => ({ ...prev, dadosPessoais: rgData }));
+      // Procurar por CNH primeiro (prioridade porque já contém RG e CPF)
+      const cnhDoc = documentTypes.find(doc => doc.type === 'cnh');
+      const rgDoc = documentTypes.find(doc => doc.type === 'rg');
+      const cpfDoc = documentTypes.find(doc => doc.type === 'cpf');
+
+      // Extrair dados pessoais
+      if (cnhDoc) {
+        console.log('Extraindo dados da CNH:', cnhDoc.file.name);
+        personalData = await geminiOcrService.extractFromRG(cnhDoc.file); // CNH contém os mesmos dados do RG
+        setExtractedData(prev => ({ ...prev, dadosPessoais: personalData }));
+      } else if (rgDoc) {
+        console.log('Extraindo dados do RG:', rgDoc.file.name);
+        personalData = await geminiOcrService.extractFromRG(rgDoc.file);
+        setExtractedData(prev => ({ ...prev, dadosPessoais: personalData }));
+        
+        // Se RG não tem CPF e há documento CPF separado, extrair dele
+        if (!personalData.cpf && cpfDoc) {
+          console.log('Extraindo CPF do documento separado:', cpfDoc.file.name);
+          const cpfData = await geminiOcrService.extractFromRG(cpfDoc.file);
+          personalData.cpf = cpfData.cpf;
+          setExtractedData(prev => ({ 
+            ...prev, 
+            dadosPessoais: { ...prev.dadosPessoais, cpf: cpfData.cpf }
+          }));
+        }
+      } else if (cpfDoc) {
+        console.log('Extraindo dados do CPF:', cpfDoc.file.name);
+        personalData = await geminiOcrService.extractFromRG(cpfDoc.file);
+        setExtractedData(prev => ({ ...prev, dadosPessoais: personalData }));
       }
 
-      if (payslipFiles.length > 0) {
-        // Extrair dados do holerite mais recente
-        const latestPayslip = payslipFiles[0];
-        payslipData = await geminiOcrService.extractFromPaySlip(latestPayslip);
+      // Extrair dados profissionais
+      const payslipDocs = documentTypes.filter(doc => doc.type === 'payslip');
+      if (payslipDocs.length > 0) {
+        console.log('Extraindo dados do holerite:', payslipDocs[0].file.name);
+        payslipData = await geminiOcrService.extractFromPaySlip(payslipDocs[0].file);
         setExtractedData(prev => ({ ...prev, dadosProfissionais: payslipData }));
       }
 
-      if (addressFile) {
-        addressData = await geminiOcrService.extractFromAddressProof(addressFile);
+      // Extrair dados de endereço
+      const addressDoc = documentTypes.find(doc => doc.type === 'address');
+      if (addressDoc) {
+        console.log('Extraindo dados do comprovante de endereço:', addressDoc.file.name);
+        addressData = await geminiOcrService.extractFromAddressProof(addressDoc.file);
         setExtractedData(prev => ({ ...prev, endereco: addressData }));
       }
 
-      if (certificateFile) {
-        certificateData = await geminiOcrService.extractFromCertificate(certificateFile);
+      // Extrair dados de certidão
+      const certificateDoc = documentTypes.find(doc => doc.type === 'certificate');
+      if (certificateDoc) {
+        console.log('Extraindo dados da certidão:', certificateDoc.file.name);
+        certificateData = await geminiOcrService.extractFromCertificate(certificateDoc.file);
         setExtractedData(prev => ({ ...prev, conjuge: certificateData }));
       }
 
       // Validar os dados extraídos
       const errors: string[] = [];
-      if (!rgData.nomeCompleto) errors.push("Nome completo não encontrado no RG");
-      if (!rgData.cpf) errors.push("CPF não encontrado no RG");
-      if (!rgData.dataNascimento) errors.push("Data de nascimento não encontrada no RG");
-      if (!addressData.logradouro) errors.push("Endereço não encontrado no comprovante de residência");
-      if (!payslipData.salarioBruto) errors.push("Salário não encontrado no holerite");
+      
+      // Verificar dados pessoais básicos
+      if (!personalData.nomeCompleto) {
+        errors.push("Nome completo não encontrado nos documentos de identidade");
+      }
+      
+      // Para CPF, aceitar se vier da CNH, RG ou documento CPF
+      if (!personalData.cpf) {
+        if (cnhDoc) {
+          errors.push("CPF não encontrado na CNH");
+        } else if (rgDoc && !cpfDoc) {
+          errors.push("CPF não encontrado no RG - necessário documento CPF separado");
+        } else {
+          errors.push("CPF não encontrado nos documentos");
+        }
+      }
+      
+      if (!personalData.dataNascimento) {
+        errors.push("Data de nascimento não encontrada nos documentos de identidade");
+      }
+      
+      if (!addressData.logradouro) {
+        errors.push("Endereço não encontrado no comprovante de residência");
+      }
+      
+      if (!payslipData.salarioBruto) {
+        errors.push("Salário não encontrado no holerite");
+      }
 
       setValidationResults({
         isValid: errors.length === 0,
