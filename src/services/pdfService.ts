@@ -1,43 +1,15 @@
-import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import { PDFDocument, PDFPage, rgb, StandardFonts } from 'pdf-lib';
+import templatePdfService from './templatePdfService';
 
-export interface FichaData {
-  dadosPessoais: {
-    nomeCompleto: string;
-    rg: string;
-    cpf: string;
-    dataNascimento: string;
-    naturalidade: string;
-    estadoCivil: string;
-    orgaoEmissor: string;
-  };
-  dadosProfissionais: {
-    empresa: string;
-    cargo: string;
-    salarioBruto: string;
-    dataAdmissao: string;
-  };
-  endereco: {
-    logradouro: string;
-    complemento?: string;
-    bairro: string;
-    cidade: string;
-    estado: string;
-    cep: string;
-  };
-  dadosAdicionais: {
-    email: string;
-    telefone: string;
-    empreendimento: string;
-  };
-  conjuge?: {
-    nomeCompleto: string;
-    rg: string;
-    cpf: string;
-    dataNascimento: string;
-  };
+interface FichaData {
+  dadosPessoais: any;
+  dadosProfissionais: any;
+  endereco: any;
+  dadosAdicionais: any;
+  conjuge?: any;
 }
 
-export interface CapaData {
+interface CapaData {
   cliente: {
     nome: string;
     cpf: string;
@@ -51,476 +23,337 @@ export interface CapaData {
   observacoes?: string;
 }
 
-class PDFService {
-  generateFichaCadastral(data: FichaData): Promise<Uint8Array> {
-    return new Promise(async (resolve) => {
-      try {
-        const pdfDoc = await PDFDocument.create();
-        const page = pdfDoc.addPage([595, 842]); // A4 size
-        const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-        const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-
-        let yPosition = 800;
-        const leftMargin = 50;
-        const lineHeight = 20;
-
-        // Título
-        page.drawText('FICHA CADASTRAL', {
-          x: leftMargin,
-          y: yPosition,
-          size: 18,
-          font: boldFont,
-          color: rgb(0, 0, 0),
-        });
-
-        yPosition -= 40;
-
-        // Data atual
-        const dataAtual = new Date().toLocaleDateString('pt-BR');
-        page.drawText(`DATA: ${dataAtual}`, {
-          x: leftMargin,
-          y: yPosition,
-          size: 12,
-          font: boldFont,
-        });
-
-        yPosition -= 30;
-
-        // Seção Dados Pessoais
-        page.drawText('DADOS PESSOAIS', {
-          x: leftMargin,
-          y: yPosition,
-          size: 14,
-          font: boldFont,
-        });
-
-        yPosition -= lineHeight;
-
-        const pessoalFields = [
-          `NOME COMPLETO: ${data.dadosPessoais.nomeCompleto || ''}`,
-          `RG: ${data.dadosPessoais.rg || ''} ÓRGÃO EMISSOR: ${data.dadosPessoais.orgaoEmissor || ''}`,
-          `CPF: ${data.dadosPessoais.cpf || ''}`,
-          `DATA DE NASCIMENTO: ${data.dadosPessoais.dataNascimento || ''}`,
-          `NATURALIDADE: ${data.dadosPessoais.naturalidade || ''}`,
-          `NACIONALIDADE: BRASILEIRA`,
-          `ESTADO CIVIL: ${data.dadosPessoais.estadoCivil || ''}`,
-          `EMAIL: ${data.dadosAdicionais.email || ''}`,
-          `TELEFONE: ${data.dadosAdicionais.telefone || ''}`,
-          `GRAU DE INSTRUÇÃO: ________________`,
-          `PIS: ________________`,
-        ];
-
-        pessoalFields.forEach(field => {
-          page.drawText(field, {
-            x: leftMargin,
-            y: yPosition,
-            size: 10,
-            font: font,
-          });
-          yPosition -= lineHeight;
-        });
-
-        yPosition -= 20;
-
-        // Seção Dados Profissionais
-        page.drawText('DADOS PROFISSIONAIS', {
-          x: leftMargin,
-          y: yPosition,
-          size: 14,
-          font: boldFont,
-        });
-
-        yPosition -= lineHeight;
-
-        const profissionalFields = [
-          `EMPRESA: ${data.dadosProfissionais.empresa || ''}`,
-          `CARGO: ${data.dadosProfissionais.cargo || ''}`,
-          `SALÁRIO BRUTO: ${data.dadosProfissionais.salarioBruto || ''}`,
-          `DATA DE ADMISSÃO: ${data.dadosProfissionais.dataAdmissao || ''}`,
-        ];
-
-        profissionalFields.forEach(field => {
-          page.drawText(field, {
-            x: leftMargin,
-            y: yPosition,
-            size: 10,
-            font: font,
-          });
-          yPosition -= lineHeight;
-        });
-
-        yPosition -= 20;
-
-        // Seção Endereço
-        page.drawText('ENDEREÇO RESIDENCIAL', {
-          x: leftMargin,
-          y: yPosition,
-          size: 14,
-          font: boldFont,
-        });
-
-        yPosition -= lineHeight;
-
-        const enderecoFields = [
-          `LOGRADOURO: ${data.endereco.logradouro || ''}`,
-          `COMPLEMENTO: ${data.endereco.complemento || ''}`,
-          `BAIRRO: ${data.endereco.bairro || ''}`,
-          `CIDADE: ${data.endereco.cidade || ''} ESTADO: ${data.endereco.estado || ''}`,
-          `CEP: ${data.endereco.cep || ''}`,
-          `TIPO DE MORADIA: ________________`,
-        ];
-
-        enderecoFields.forEach(field => {
-          page.drawText(field, {
-            x: leftMargin,
-            y: yPosition,
-            size: 10,
-            font: font,
-          });
-          yPosition -= lineHeight;
-        });
-
-        yPosition -= 20;
-
-        // Seção do Processo
-        page.drawText('DADOS DO PROCESSO', {
-          x: leftMargin,
-          y: yPosition,
-          size: 14,
-          font: boldFont,
-        });
-
-        yPosition -= lineHeight;
-
-        const processoFields = [
-          `EMPREENDIMENTO: ${data.dadosAdicionais.empreendimento || ''}`,
-          `CORRETOR: GORETI / BRAZZA`,
-          `COORDENADOR: LAVILLE`,
-          `DEPENDENTES: ________________`,
-          `IMÓVEL: ________________`,
-        ];
-
-        processoFields.forEach(field => {
-          page.drawText(field, {
-            x: leftMargin,
-            y: yPosition,
-            size: 10,
-            font: font,
-          });
-          yPosition -= lineHeight;
-        });
-
-        // Se houver cônjuge, adicionar seção
-        if (data.conjuge) {
-          yPosition -= 30;
-          page.drawText('DADOS DO CÔNJUGE', {
-            x: leftMargin,
-            y: yPosition,
-            size: 14,
-            font: boldFont,
-          });
-
-          yPosition -= lineHeight;
-
-          const conjugeFields = [
-            `NOME COMPLETO: ${data.conjuge.nomeCompleto || ''}`,
-            `RG: ${data.conjuge.rg || ''}`,
-            `CPF: ${data.conjuge.cpf || ''}`,
-            `DATA DE NASCIMENTO: ${data.conjuge.dataNascimento || ''}`,
-          ];
-
-          conjugeFields.forEach(field => {
-            page.drawText(field, {
-              x: leftMargin,
-              y: yPosition,
-              size: 10,
-              font: font,
-            });
-            yPosition -= lineHeight;
-          });
+class PdfService {
+  async generateFichaCadastral(data: FichaData): Promise<Uint8Array> {
+    console.log('Gerando ficha cadastral com dados:', data);
+    
+    // Verificar se há template carregado
+    const hasTemplate = await templatePdfService.hasTemplate();
+    
+    if (hasTemplate) {
+      console.log('Usando template Abiatar para ficha cadastral');
+      
+      // Converter dados para o formato do template
+      const templateData = templatePdfService.convertDataToTemplateFormat(
+        {
+          dadosPessoais: data.dadosPessoais,
+          dadosProfissionais: data.dadosProfissionais,
+          endereco: data.endereco,
+          conjuge: data.conjuge
+        },
+        {
+          empreendimento: data.dadosAdicionais?.empreendimento || '',
+          email: data.dadosAdicionais?.email || '',
+          telefone: data.dadosAdicionais?.telefone || ''
         }
-
-        const pdfBytes = await pdfDoc.save();
-        resolve(pdfBytes);
-      } catch (error) {
-        console.error('Erro ao gerar ficha cadastral:', error);
-        resolve(new Uint8Array());
-      }
-    });
-  }
-
-  generateCapa(data: CapaData): Promise<Uint8Array> {
-    return new Promise(async (resolve) => {
-      try {
-        const pdfDoc = await PDFDocument.create();
-        const page = pdfDoc.addPage([595, 842]); // A4 size
-        const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-        const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-
-        let yPosition = 800;
-        const leftMargin = 50;
-        const lineHeight = 25;
-
-        // Título
-        page.drawText('RESUMO / CAPA', {
-          x: leftMargin,
-          y: yPosition,
-          size: 20,
-          font: boldFont,
-          color: rgb(0, 0, 0),
-        });
-
-        yPosition -= 60;
-
-        // Informações do processo
-        const dataAtual = new Date().toLocaleDateString('pt-BR');
-        
-        const resumoText = `
-RESUMO COMPLETO - DOCUMENTAÇÃO DO CLIENTE
-
-CLIENTE: ${data.cliente.nome}
-CPF: ${data.cliente.cpf}
-
-${data.conjuge ? `CÔNJUGE: ${data.conjuge.nome}\nCPF: ${data.conjuge.cpf}\n` : ''}
-
-EMPREENDIMENTO: ${data.empreendimento}
-MÍDIA DE ORIGEM: ${data.midiaOrigem}
-
-EM ${dataAtual} FOI VERIFICADO E APROVADO A DOCUMENTAÇÃO ACIMA DESCRITA, 
-TENDO SIDO PROTOCOLADOS OS DOCUMENTOS NECESSÁRIOS PARA ANÁLISE DE CRÉDITO.
-
-CORRETOR: GORETI / BRAZZA
-COORDENADOR: LAVILLE
-TELEFONE: (11) 99999-9999
-GERENTE: BRAZZA
-
-${data.observacoes ? `\nOBSERVAÇÕES: ${data.observacoes}` : ''}
-        `.trim();
-
-        // Dividir texto em linhas e desenhar
-        const lines = resumoText.split('\n');
-        lines.forEach(line => {
-          if (yPosition > 50) {
-            page.drawText(line, {
-              x: leftMargin,
-              y: yPosition,
-              size: 12,
-              font: line.includes(':') ? boldFont : font,
-            });
-            yPosition -= lineHeight;
-          }
-        });
-
-        const pdfBytes = await pdfDoc.save();
-        resolve(pdfBytes);
-      } catch (error) {
-        console.error('Erro ao gerar capa:', error);
-        resolve(new Uint8Array());
-      }
-    });
-  }
-
-  async consolidateDocuments(originalFiles: File[], fichaBytes: Uint8Array, capaBytes: Uint8Array): Promise<Uint8Array> {
-    try {
-      console.log('=== INICIANDO CONSOLIDAÇÃO DE DOCUMENTOS ===');
-      console.log('Ordem esperada: 1) Capa, 2) Ficha Cadastral, 3) Documentos Originais');
+      );
       
-      const consolidatedPdf = await PDFDocument.create();
-
-      // 1. PRIMEIRA PÁGINA: CAPA/RESUMO
-      console.log('Adicionando CAPA como primeira página...');
-      const capaPdf = await PDFDocument.load(capaBytes);
-      const capaPages = await consolidatedPdf.copyPages(capaPdf, capaPdf.getPageIndices());
-      capaPages.forEach((page) => consolidatedPdf.addPage(page));
-
-      // 2. SEGUNDA PÁGINA: FICHA CADASTRAL
-      console.log('Adicionando FICHA CADASTRAL como segunda página...');
-      const fichaPdf = await PDFDocument.load(fichaBytes);
-      const fichaPages = await consolidatedPdf.copyPages(fichaPdf, fichaPdf.getPageIndices());
-      fichaPages.forEach((page) => consolidatedPdf.addPage(page));
-
-      // 3. PÁGINAS SEGUINTES: DOCUMENTOS ORIGINAIS EM ORDEM ESPECÍFICA
-      console.log('Adicionando documentos originais em ordem...');
-      
-      // Ordenar arquivos por prioridade: RG, Holerite, Comprovante, Certidões, Outros
-      const orderedFiles = this.orderFilesByPriority(originalFiles);
-      
-      for (const file of orderedFiles) {
-        console.log(`Processando arquivo: ${file.name}`);
-        
-        if (file.type === 'application/pdf') {
-          try {
-            const fileBytes = await file.arrayBuffer();
-            const filePdf = await PDFDocument.load(fileBytes);
-            const pages = await consolidatedPdf.copyPages(filePdf, filePdf.getPageIndices());
-            pages.forEach((page) => consolidatedPdf.addPage(page));
-            console.log(`✅ PDF adicionado: ${file.name}`);
-          } catch (error) {
-            console.error(`❌ Erro ao processar PDF ${file.name}:`, error);
-          }
-        } else if (file.type.startsWith('image/')) {
-          try {
-            // Converter imagem para PDF e adicionar
-            const imageBytes = await file.arrayBuffer();
-            const page = consolidatedPdf.addPage([595, 842]); // A4
-            
-            let image;
-            if (file.type === 'image/jpeg' || file.type === 'image/jpg') {
-              image = await consolidatedPdf.embedJpg(imageBytes);
-            } else if (file.type === 'image/png') {
-              image = await consolidatedPdf.embedPng(imageBytes);
-            }
-
-            if (image) {
-              // Calcular dimensões para caber na página mantendo proporção
-              const maxWidth = 495; // largura máxima (A4 - margens)
-              const maxHeight = 692; // altura máxima (A4 - margens)
-              
-              const imgWidth = image.width;
-              const imgHeight = image.height;
-              
-              let finalWidth = imgWidth;
-              let finalHeight = imgHeight;
-              
-              // Redimensionar se necessário
-              if (imgWidth > maxWidth) {
-                finalWidth = maxWidth;
-                finalHeight = (imgHeight * maxWidth) / imgWidth;
-              }
-              
-              if (finalHeight > maxHeight) {
-                finalHeight = maxHeight;
-                finalWidth = (finalWidth * maxHeight) / finalHeight;
-              }
-              
-              // Centralizar na página
-              const x = (595 - finalWidth) / 2;
-              const y = (842 - finalHeight) / 2;
-              
-              page.drawImage(image, {
-                x,
-                y,
-                width: finalWidth,
-                height: finalHeight,
-              });
-              
-              console.log(`✅ Imagem adicionada: ${file.name}`);
-            }
-          } catch (error) {
-            console.error(`❌ Erro ao processar imagem ${file.name}:`, error);
-          }
-        }
-      }
-
-      console.log('=== CONSOLIDAÇÃO CONCLUÍDA ===');
-      console.log(`Total de páginas no documento final: ${consolidatedPdf.getPageCount()}`);
-      
-      return await consolidatedPdf.save();
-    } catch (error) {
-      console.error('Erro ao consolidar documentos:', error);
-      return new Uint8Array();
+      // Preencher template
+      return await templatePdfService.fillTemplate(templateData);
+    } else {
+      console.log('Template não encontrado, gerando ficha padrão');
+      return await this.generateDefaultFicha(data);
     }
   }
 
-  private orderFilesByPriority(files: File[]): File[] {
-    console.log('=== ORDENANDO ARQUIVOS POR PRIORIDADE ===');
+  private async generateDefaultFicha(data: FichaData): Promise<Uint8Array> {
+    const pdfDoc = await PDFDocument.create();
+    const page = pdfDoc.addPage([595, 842]); // A4
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+    let yPosition = 800;
+    const leftMargin = 50;
+    const lineHeight = 20;
+
+    // Título
+    page.drawText('FICHA CADASTRAL', {
+      x: leftMargin,
+      y: yPosition,
+      size: 16,
+      font: fontBold,
+      color: rgb(0, 0, 0),
+    });
+
+    yPosition -= 40;
+
+    // Dados Pessoais
+    const dadosPessoais = data.dadosPessoais || {};
+    const campos = [
+      ['NOME COMPLETO:', dadosPessoais.nomeCompleto || ''],
+      ['CPF:', dadosPessoais.cpf || ''],
+      ['RG:', dadosPessoais.rg || ''],
+      ['DATA DE NASCIMENTO:', dadosPessoais.dataNascimento || ''],
+      ['ESTADO CIVIL:', dadosPessoais.estadoCivil || ''],
+      ['NATURALIDADE:', dadosPessoais.naturalidade || ''],
+      ['NACIONALIDADE:', 'BRASILEIRO'],
+    ];
+
+    campos.forEach(([label, value]) => {
+      page.drawText(`${label} ${value}`, {
+        x: leftMargin,
+        y: yPosition,
+        size: 10,
+        font: font,
+        color: rgb(0, 0, 0),
+      });
+      yPosition -= lineHeight;
+    });
+
+    return await pdfDoc.save();
+  }
+
+  async generateCapa(data: CapaData): Promise<Uint8Array> {
+    console.log('Gerando capa com dados:', data);
     
-    const priorityOrder = {
-      rg: 1,        // RG/Identidade primeiro
-      holerite: 2,  // Holerite segundo  
-      comprovante: 3, // Comprovante de residência terceiro
-      certidao: 4,  // Certidões quarto
-      imposto: 5,   // Declaração IR quinto
-      outros: 6     // Outros por último
-    };
+    const pdfDoc = await PDFDocument.create();
+    const page = pdfDoc.addPage([595, 842]); // A4
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-    const categorizeFile = (filename: string): number => {
-      const name = filename.toLowerCase();
-      
-      if (name.includes('rg') || name.includes('identidade')) {
-        console.log(`${filename} -> RG (prioridade 1)`);
-        return priorityOrder.rg;
-      }
-      if (name.includes('holerite') || name.includes('folha') || name.includes('pagamento')) {
-        console.log(`${filename} -> HOLERITE (prioridade 2)`);
-        return priorityOrder.holerite;
-      }
-      if (name.includes('comprovante') || name.includes('residencia') || name.includes('endereco') || 
-          name.includes('light') || name.includes('enel') || name.includes('agua') || name.includes('conta')) {
-        console.log(`${filename} -> COMPROVANTE (prioridade 3)`);
-        return priorityOrder.comprovante;
-      }
-      if (name.includes('certidao') || name.includes('nascimento') || name.includes('casamento')) {
-        console.log(`${filename} -> CERTIDÃO (prioridade 4)`);
-        return priorityOrder.certidao;
-      }
-      if (name.includes('imposto') || name.includes('declaracao') || name.includes('irpf')) {
-        console.log(`${filename} -> IMPOSTO RENDA (prioridade 5)`);
-        return priorityOrder.imposto;
-      }
-      
-      console.log(`${filename} -> OUTROS (prioridade 6)`);
-      return priorityOrder.outros;
-    };
+    let yPosition = 750;
+    const leftMargin = 50;
+    const lineHeight = 25;
 
-    const sortedFiles = [...files].sort((a, b) => {
-      const priorityA = categorizeFile(a.name);
-      const priorityB = categorizeFile(b.name);
-      return priorityA - priorityB;
+    // Data atual
+    const currentDate = new Date().toLocaleDateString('pt-BR');
+    page.drawText(`Data: ${currentDate}`, {
+      x: leftMargin,
+      y: yPosition,
+      size: 12,
+      font: fontBold,
+      color: rgb(0, 0, 0),
     });
 
-    console.log('Ordem final dos arquivos:');
-    sortedFiles.forEach((file, index) => {
-      console.log(`${index + 1}. ${file.name}`);
+    yPosition -= 40;
+
+    // Título
+    page.drawText('DOCUMENTAÇÃO PARA ANÁLISE DE CRÉDITO', {
+      x: leftMargin,
+      y: yPosition,
+      size: 16,
+      font: fontBold,
+      color: rgb(0, 0, 0),
     });
 
-    return sortedFiles;
+    yPosition -= 40;
+
+    // Empreendimento
+    page.drawText(`EMPREENDIMENTO: ${data.empreendimento}`, {
+      x: leftMargin,
+      y: yPosition,
+      size: 12,
+      font: fontBold,
+      color: rgb(0, 0, 0),
+    });
+
+    yPosition -= 30;
+
+    // Cliente Principal
+    page.drawText('CLIENTE:', {
+      x: leftMargin,
+      y: yPosition,
+      size: 12,
+      font: fontBold,
+      color: rgb(0, 0, 0),
+    });
+
+    yPosition -= lineHeight;
+    page.drawText(`NOME: ${data.cliente.nome}`, {
+      x: leftMargin,
+      y: yPosition,
+      size: 11,
+      font: font,
+      color: rgb(0, 0, 0),
+    });
+
+    yPosition -= lineHeight;
+    page.drawText(`CPF: ${data.cliente.cpf}`, {
+      x: leftMargin,
+      y: yPosition,
+      size: 11,
+      font: font,
+      color: rgb(0, 0, 0),
+    });
+
+    // Cônjuge (se houver)
+    if (data.conjuge) {
+      yPosition -= 30;
+      page.drawText('CÔNJUGE:', {
+        x: leftMargin,
+        y: yPosition,
+        size: 12,
+        font: fontBold,
+        color: rgb(0, 0, 0),
+      });
+
+      yPosition -= lineHeight;
+      page.drawText(`NOME: ${data.conjuge.nome}`, {
+        x: leftMargin,
+        y: yPosition,
+        size: 11,
+        font: font,
+        color: rgb(0, 0, 0),
+      });
+
+      yPosition -= lineHeight;
+      page.drawText(`CPF: ${data.conjuge.cpf}`, {
+        x: leftMargin,
+        y: yPosition,
+        size: 11,
+        font: font,
+        color: rgb(0, 0, 0),
+      });
+    }
+
+    yPosition -= 40;
+
+    // Mídia de Origem
+    page.drawText(`MÍDIA DE ORIGEM: ${data.midiaOrigem}`, {
+      x: leftMargin,
+      y: yPosition,
+      size: 11,
+      font: font,
+      color: rgb(0, 0, 0),
+    });
+
+    yPosition -= 30;
+
+    // Telefone fixo
+    page.drawText('TELEFONE: 11 9 7098 8512', {
+      x: leftMargin,
+      y: yPosition,
+      size: 11,
+      font: font,
+      color: rgb(0, 0, 0),
+    });
+
+    // Observações (se houver)
+    if (data.observacoes && data.observacoes.trim()) {
+      yPosition -= 40;
+      page.drawText('OBSERVAÇÕES:', {
+        x: leftMargin,
+        y: yPosition,
+        size: 12,
+        font: fontBold,
+        color: rgb(0, 0, 0),
+      });
+
+      yPosition -= lineHeight;
+      // Quebrar texto longo em múltiplas linhas
+      const observacoes = data.observacoes;
+      const maxCharsPerLine = 70;
+      const lines = this.breakTextIntoLines(observacoes, maxCharsPerLine);
+      
+      lines.forEach(line => {
+        page.drawText(line, {
+          x: leftMargin,
+          y: yPosition,
+          size: 10,
+          font: font,
+          color: rgb(0, 0, 0),
+        });
+        yPosition -= 15;
+      });
+    }
+
+    return await pdfDoc.save();
+  }
+
+  private breakTextIntoLines(text: string, maxCharsPerLine: number): string[] {
+    const words = text.split(' ');
+    const lines: string[] = [];
+    let currentLine = '';
+
+    words.forEach(word => {
+      if ((currentLine + word).length <= maxCharsPerLine) {
+        currentLine += (currentLine ? ' ' : '') + word;
+      } else {
+        if (currentLine) lines.push(currentLine);
+        currentLine = word;
+      }
+    });
+
+    if (currentLine) lines.push(currentLine);
+    return lines;
+  }
+
+  async consolidateDocuments(originalFiles: File[], fichaBytes: Uint8Array, capaBytes: Uint8Array): Promise<Uint8Array> {
+    console.log('Consolidando documentos...');
+    
+    const consolidatedDoc = await PDFDocument.create();
+
+    try {
+      // Adicionar capa primeiro
+      const capaDoc = await PDFDocument.load(capaBytes);
+      const capaPages = await consolidatedDoc.copyPages(capaDoc, capaDoc.getPageIndices());
+      capaPages.forEach(page => consolidatedDoc.addPage(page));
+
+      // Adicionar ficha cadastral
+      const fichaDoc = await PDFDocument.load(fichaBytes);
+      const fichaPages = await consolidatedDoc.copyPages(fichaDoc, fichaDoc.getPageIndices());
+      fichaPages.forEach(page => consolidatedDoc.addPage(page));
+
+      // Adicionar documentos originais
+      for (const file of originalFiles) {
+        if (file.type === 'application/pdf') {
+          try {
+            const fileBuffer = await file.arrayBuffer();
+            const pdfDoc = await PDFDocument.load(fileBuffer);
+            const pages = await consolidatedDoc.copyPages(pdfDoc, pdfDoc.getPageIndices());
+            pages.forEach(page => consolidatedDoc.addPage(page));
+          } catch (error) {
+            console.error(`Erro ao processar PDF ${file.name}:`, error);
+          }
+        }
+      }
+
+      return await consolidatedDoc.save();
+    } catch (error) {
+      console.error('Erro na consolidação:', error);
+      throw new Error('Falha ao consolidar documentos');
+    }
   }
 
   generateResumoCompleto(data: any): string {
-    const dataAtual = new Date().toLocaleDateString('pt-BR');
+    const { dadosPessoais, dadosProfissionais, endereco, dadosAdicionais } = data;
     
     return `
-RESUMO COMPLETO - DOCUMENTAÇÃO DO CLIENTE
+=== RESUMO COMPLETO DO CLIENTE ===
 
-=== DADOS PESSOAIS ===
-Nome Completo: ${data.dadosPessoais?.nomeCompleto || 'NÃO INFORMADO'}
-RG: ${data.dadosPessoais?.rg || 'NÃO INFORMADO'}
-CPF: ${data.dadosPessoais?.cpf || 'NÃO INFORMADO'}
-Data de Nascimento: ${data.dadosPessoais?.dataNascimento || 'NÃO INFORMADO'}
-Naturalidade: ${data.dadosPessoais?.naturalidade || 'NÃO INFORMADO'}
-Estado Civil: ${data.dadosPessoais?.estadoCivil || 'NÃO INFORMADO'}
-Email: ${data.dadosAdicionais?.email || 'NÃO INFORMADO'}
-Telefone: ${data.dadosAdicionais?.telefone || 'NÃO INFORMADO'}
+📋 DADOS PESSOAIS:
+Nome: ${dadosPessoais?.nomeCompleto || 'Não informado'}
+CPF: ${dadosPessoais?.cpf || 'Não informado'}
+RG: ${dadosPessoais?.rg || 'Não informado'}
+Data de Nascimento: ${dadosPessoais?.dataNascimento || 'Não informado'}
+Estado Civil: ${dadosPessoais?.estadoCivil || 'Não informado'}
+Naturalidade: ${dadosPessoais?.naturalidade || 'Não informado'}
 
-=== DADOS PROFISSIONAIS ===
-Empresa: ${data.dadosProfissionais?.empresa || 'NÃO INFORMADO'}
-Cargo: ${data.dadosProfissionais?.cargo || 'NÃO INFORMADO'}
-Salário Bruto: ${data.dadosProfissionais?.salarioBruto || 'NÃO INFORMADO'}
-Data de Admissão: ${data.dadosProfissionais?.dataAdmissao || 'NÃO INFORMADO'}
+💼 DADOS PROFISSIONAIS:
+Empresa: ${dadosProfissionais?.empresa || 'Não informado'}
+Cargo: ${dadosProfissionais?.cargo || 'Não informado'}
+Salário: ${dadosProfissionais?.salarioBruto || 'Não informado'}
+Admissão: ${dadosProfissionais?.dataAdmissao || 'Não informado'}
 
-=== ENDEREÇO RESIDENCIAL ===
-Logradouro: ${data.endereco?.logradouro || 'NÃO INFORMADO'}
-Bairro: ${data.endereco?.bairro || 'NÃO INFORMADO'}
-Cidade: ${data.endereco?.cidade || 'NÃO INFORMADO'}
-Estado: ${data.endereco?.estado || 'NÃO INFORMADO'}
-CEP: ${data.endereco?.cep || 'NÃO INFORMADO'}
+🏠 ENDEREÇO:
+${endereco?.logradouro || 'Não informado'}
+${endereco?.complemento ? endereco.complemento + ', ' : ''}${endereco?.bairro || 'Não informado'}
+${endereco?.cidade || 'Não informado'} - ${endereco?.uf || 'Não informado'}
+CEP: ${endereco?.cep || 'Não informado'}
 
-=== DADOS DO PROCESSO ===
-Empreendimento: ${data.dadosAdicionais?.empreendimento || 'NÃO INFORMADO'}
-Mídia de Origem: ${data.dadosAdicionais?.midiaOrigem || 'NÃO INFORMADO'}
-Data de Verificação: ${dataAtual}
-Corretor: GORETI / BRAZZA
-Coordenador: LAVILLE
+🏢 INFORMAÇÕES ADICIONAIS:
+Empreendimento: ${dadosAdicionais?.empreendimento || 'Não informado'}
+Email: ${dadosAdicionais?.email || 'Não informado'}
+Telefone: ${dadosAdicionais?.telefone || 'Não informado'}
+Mídia de Origem: ${dadosAdicionais?.midiaOrigem || 'Não informado'}
+${dadosAdicionais?.observacoes ? `Observações: ${dadosAdicionais.observacoes}` : ''}
 
-EM ${dataAtual} FOI VERIFICADO E APROVADO A DOCUMENTAÇÃO ACIMA DESCRITA, TENDO SIDO PROTOCOLADOS OS DOCUMENTOS NECESSÁRIOS PARA ANÁLISE DE CRÉDITO.
-
-${data.dadosAdicionais?.observacoes ? `\nObservações: ${data.dadosAdicionais.observacoes}` : ''}
+Data do Resumo: ${new Date().toLocaleDateString('pt-BR')}
     `.trim();
   }
 
-  downloadPDF(bytes: Uint8Array, filename: string): void {
-    const blob = new Blob([bytes], { type: 'application/pdf' });
+  downloadPDF(pdfBytes: Uint8Array, filename: string): void {
+    const blob = new Blob([pdfBytes], { type: 'application/pdf' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -532,4 +365,4 @@ ${data.dadosAdicionais?.observacoes ? `\nObservações: ${data.dadosAdicionais.o
   }
 }
 
-export default new PDFService();
+export default new PdfService();
