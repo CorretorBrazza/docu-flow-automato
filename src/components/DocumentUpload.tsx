@@ -1,5 +1,4 @@
-
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Upload, File, X, CheckCircle, AlertTriangle, Loader2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,12 +6,18 @@ import { Badge } from "@/components/ui/badge";
 
 interface DocumentUploadProps {
   onUploadComplete: (docs: File[]) => void;
+  initialFiles?: File[];
 }
 
-const DocumentUpload = ({ onUploadComplete }: DocumentUploadProps) => {
-  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+const DocumentUpload = ({ onUploadComplete, initialFiles = [] }: DocumentUploadProps) => {
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>(initialFiles);
   const [isDragging, setIsDragging] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Update uploaded files when initialFiles changes
+  useEffect(() => {
+    setUploadedFiles(initialFiles);
+  }, [initialFiles]);
 
   const requiredDocs = [
     "RG (frente e verso)",
