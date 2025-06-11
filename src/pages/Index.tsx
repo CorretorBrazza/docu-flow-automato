@@ -76,10 +76,12 @@ const Index = () => {
     setUploadedFiles(files);
     updateCurrentClient({ 
       files, 
-      step: 2,
+      step: Math.max(2, currentStep),
       missingDocs: files.length > 0 ? [] : ["Documentos obrigatórios"]
     });
-    setCurrentStep(2);
+    if (currentStep === 1) {
+      setCurrentStep(2);
+    }
   };
 
   const handleValidationComplete = (data: any) => {
@@ -91,10 +93,12 @@ const Index = () => {
     
     updateCurrentClient({ 
       validationData: data, 
-      step: 3,
+      step: Math.max(3, currentStep),
       name: clientName
     });
-    setCurrentStep(3);
+    if (currentStep === 2) {
+      setCurrentStep(3);
+    }
   };
 
   const handleDataSubmit = (data: any) => {
@@ -104,10 +108,12 @@ const Index = () => {
     
     updateCurrentClient({ 
       additionalData: data, 
-      step: 4,
+      step: Math.max(4, currentStep),
       empreendimento: data.empreendimento || "Empreendimento não informado"
     });
-    setCurrentStep(4);
+    if (currentStep === 3) {
+      setCurrentStep(4);
+    }
     
     setTimeout(() => {
       setIsProcessing(false);
@@ -198,97 +204,41 @@ const Index = () => {
           <Progress value={(currentStep / steps.length) * 100} className="h-2" />
         </div>
 
-        {/* Main Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Sidebar - Info Panel */}
-          <div className="lg:col-span-1">
-            <Card className="sticky top-6">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Clock className="w-5 h-5 text-blue-500" />
-                  Status do Processo
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-sm font-medium text-slate-700">Documentos Carregados</p>
-                    <p className="text-2xl font-bold text-blue-600">{uploadedFiles.length}</p>
-                  </div>
-                  
-                  {validationData && (
-                    <div>
-                      <p className="text-sm font-medium text-slate-700">Status da Validação</p>
-                      <div className="flex items-center gap-2 mt-1">
-                        {validationData.validationResults?.isValid ? (
-                          <>
-                            <CheckCircle className="w-4 h-4 text-green-500" />
-                            <span className="text-sm text-green-600">Aprovado</span>
-                          </>
-                        ) : (
-                          <>
-                            <AlertCircle className="w-4 h-4 text-amber-500" />
-                            <span className="text-sm text-amber-600">Ressalvas</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  )}
+        {/* Main Content Area */}
+        <div className="lg:col-span-3">
+          {currentStep === 1 && (
+            <DocumentUpload 
+              onUploadComplete={handleDocumentUpload}
+              initialFiles={uploadedFiles}
+            />
+          )}
 
-                  {currentStep === 4 && (
-                    <div>
-                      <p className="text-sm font-medium text-slate-700">Geração de Documentos</p>
-                      <div className="flex items-center gap-2 mt-1">
-                        {isProcessing ? (
-                          <>
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
-                            <span className="text-sm text-blue-600">Gerando PDFs...</span>
-                          </>
-                        ) : (
-                          <>
-                            <CheckCircle className="w-4 h-4 text-green-500" />
-                            <span className="text-sm text-green-600">Concluído</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          {currentStep === 2 && (
+            <ValidationStatus 
+              files={uploadedFiles}
+              onValidationComplete={handleValidationComplete}
+              onBackToUpload={() => setCurrentStep(1)}
+              initialValidationData={validationData}
+            />
+          )}
 
-          {/* Main Content Area */}
-          <div className="lg:col-span-3">
-            {currentStep === 1 && (
-              <DocumentUpload onUploadComplete={handleDocumentUpload} />
-            )}
+          {currentStep === 3 && (
+            <DataForm 
+              onSubmit={handleDataSubmit}
+              onBackToValidation={() => setCurrentStep(2)}
+              initialData={additionalData}
+            />
+          )}
 
-            {currentStep === 2 && (
-              <ValidationStatus 
-                files={uploadedFiles}
-                onValidationComplete={handleValidationComplete}
-                onBackToUpload={() => setCurrentStep(1)}
-              />
-            )}
-
-            {currentStep === 3 && (
-              <DataForm 
-                onSubmit={handleDataSubmit}
-                onBackToValidation={() => setCurrentStep(2)}
-              />
-            )}
-
-            {currentStep === 4 && (
-              <ResultsPanel 
-                isProcessing={isProcessing}
-                additionalData={additionalData}
-                extractedData={validationData?.extractedData}
-                originalFiles={uploadedFiles}
-                onBackToData={() => setCurrentStep(3)}
-              />
-            )}
-          </div>
+          {currentStep === 4 && (
+            <ResultsPanel 
+              isProcessing={isProcessing}
+              additionalData={additionalData}
+              extractedData={validationData?.extractedData}
+              originalFiles={uploadedFiles}
+              onBackToData={() => setCurrentStep(3)}
+            />
+          )}
         </div>
       </div>
     </div>
@@ -296,3 +246,5 @@ const Index = () => {
 };
 
 export default Index;
+
+}

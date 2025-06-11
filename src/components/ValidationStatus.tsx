@@ -10,9 +10,10 @@ interface ValidationStatusProps {
   files: File[];
   onValidationComplete: (data: any) => void;
   onBackToUpload?: () => void;
+  initialValidationData?: any;
 }
 
-const ValidationStatus = ({ files, onValidationComplete, onBackToUpload }: ValidationStatusProps) => {
+const ValidationStatus = ({ files, onValidationComplete, onBackToUpload, initialValidationData }: ValidationStatusProps) => {
   const [validationResults, setValidationResults] = useState<{ isValid: boolean; errors: string[] }>({
     isValid: true,
     errors: []
@@ -22,10 +23,14 @@ const ValidationStatus = ({ files, onValidationComplete, onBackToUpload }: Valid
   const { toast } = useToast();
 
   useEffect(() => {
-    if (files.length > 0) {
+    // Se já há dados de validação salvos, usar eles
+    if (initialValidationData) {
+      setValidationResults(initialValidationData.validationResults || { isValid: true, errors: [] });
+      setExtractedData(initialValidationData.extractedData || {});
+    } else if (files.length > 0) {
       validateDocuments();
     }
-  }, [files]);
+  }, [files, initialValidationData]);
 
   const validateDocuments = async () => {
     setIsProcessing(true);

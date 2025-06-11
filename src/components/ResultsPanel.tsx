@@ -109,6 +109,32 @@ const ResultsPanel = ({ isProcessing, additionalData, extractedData, originalFil
     }
   };
 
+  const handleVisualize = (type: 'ficha' | 'capa' | 'consolidated') => {
+    if (!generatedDocuments[type]) {
+      toast({
+        title: "Documento não disponível",
+        description: "O documento ainda está sendo gerado.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Criar blob e URL para visualização
+    const blob = new Blob([generatedDocuments[type]], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    
+    // Abrir em nova aba
+    window.open(url, '_blank');
+    
+    // Limpar URL após um tempo para evitar vazamento de memória
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    
+    toast({
+      title: "Documento aberto",
+      description: "O PDF foi aberto em uma nova aba.",
+    });
+  };
+
   const handleDownload = (type: 'ficha' | 'capa' | 'consolidated') => {
     if (!generatedDocuments[type]) {
       toast({
@@ -230,6 +256,7 @@ const ResultsPanel = ({ isProcessing, additionalData, extractedData, originalFil
                     size="sm" 
                     variant="outline"
                     disabled={!generatedDocuments[doc.key]}
+                    onClick={() => handleVisualize(doc.key)}
                   >
                     <Eye className="w-4 h-4 mr-1" />
                     Visualizar

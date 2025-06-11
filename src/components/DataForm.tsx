@@ -1,18 +1,19 @@
-import { useState } from "react";
+
+import { useState, useEffect } from "react";
 import { Users, Mail, Phone, Building, Megaphone, ArrowLeft } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface DataFormProps {
   onSubmit: (data: any) => void;
   onBackToValidation?: () => void;
+  initialData?: any;
 }
 
-const DataForm = ({ onSubmit, onBackToValidation }: DataFormProps) => {
+const DataForm = ({ onSubmit, onBackToValidation, initialData }: DataFormProps) => {
   const [formData, setFormData] = useState({
     email: "",
     telefone: "",
@@ -21,24 +22,18 @@ const DataForm = ({ onSubmit, onBackToValidation }: DataFormProps) => {
     observacoes: ""
   });
 
-  const empreendimentos = [
-    "RESIDENCIAL JARDIM DAS FLORES",
-    "CONDOMÍNIO VISTA VERDE",
-    "EDIFÍCIO CENTRAL PARK",
-    "RESIDENCIAL NOVA ESPERANÇA",
-    "CONDOMÍNIO ÁGUAS CLARAS"
-  ];
-
-  const midiasOrigem = [
-    "INDICAÇÃO",
-    "FACEBOOK",
-    "INSTAGRAM", 
-    "GOOGLE ADS",
-    "SITE",
-    "FOLHETO",
-    "OUTDOOR",
-    "OUTROS"
-  ];
+  // Carregar dados iniciais se fornecidos
+  useEffect(() => {
+    if (initialData) {
+      setFormData({
+        email: initialData.email || "",
+        telefone: initialData.telefone || "",
+        empreendimento: initialData.empreendimento || "",
+        midiaOrigem: initialData.midiaOrigem || "",
+        observacoes: initialData.observacoes || ""
+      });
+    }
+  }, [initialData]);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -111,42 +106,34 @@ const DataForm = ({ onSubmit, onBackToValidation }: DataFormProps) => {
 
               {/* Empreendimento */}
               <div className="space-y-2">
-                <Label className="flex items-center gap-2">
+                <Label htmlFor="empreendimento" className="flex items-center gap-2">
                   <Building className="w-4 h-4 text-slate-500" />
                   Empreendimento *
                 </Label>
-                <Select onValueChange={(value) => handleInputChange("empreendimento", value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o empreendimento" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {empreendimentos.map((emp) => (
-                      <SelectItem key={emp} value={emp}>
-                        {emp}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Input
+                  id="empreendimento"
+                  type="text"
+                  placeholder="Digite o nome do empreendimento"
+                  value={formData.empreendimento}
+                  onChange={(e) => handleInputChange("empreendimento", e.target.value)}
+                  className="w-full"
+                />
               </div>
 
               {/* Mídia de Origem */}
               <div className="space-y-2">
-                <Label className="flex items-center gap-2">
+                <Label htmlFor="midiaOrigem" className="flex items-center gap-2">
                   <Megaphone className="w-4 h-4 text-slate-500" />
                   Mídia de Origem *
                 </Label>
-                <Select onValueChange={(value) => handleInputChange("midiaOrigem", value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione a mídia de origem" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {midiasOrigem.map((midia) => (
-                      <SelectItem key={midia} value={midia}>
-                        {midia}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Input
+                  id="midiaOrigem"
+                  type="text"
+                  placeholder="Digite a mídia de origem"
+                  value={formData.midiaOrigem}
+                  onChange={(e) => handleInputChange("midiaOrigem", e.target.value)}
+                  className="w-full"
+                />
               </div>
             </div>
 
@@ -200,11 +187,11 @@ const DataForm = ({ onSubmit, onBackToValidation }: DataFormProps) => {
             </div>
             <div className="space-y-2">
               <p className="text-sm font-medium text-slate-600">Empreendimento</p>
-              <p className="text-slate-800">{formData.empreendimento || "Não selecionado"}</p>
+              <p className="text-slate-800">{formData.empreendimento || "Não informado"}</p>
             </div>
             <div className="space-y-2">
               <p className="text-sm font-medium text-slate-600">Mídia de Origem</p>
-              <p className="text-slate-800">{formData.midiaOrigem || "Não selecionado"}</p>
+              <p className="text-slate-800">{formData.midiaOrigem || "Não informado"}</p>
             </div>
           </div>
           {formData.observacoes && (
